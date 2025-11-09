@@ -1,0 +1,55 @@
+{
+  "expo": {
+    "name": "Quest of Seoul",
+    "slug": "quest-of-seoul",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "splash": {
+      "resizeMode": "contain",
+      "backgroundColor": "#6366f1"
+    },
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.questofseoul.app",
+      "infoPlist": {
+        "NSCameraUsageDescription": "This app uses the camera for AR experiences.",
+        "NSLocationWhenInUseUsageDescription": "This app uses your location to show nearby quests.",
+        "NSLocationAlwaysUsageDescription": "This app uses your location to show nearby quests."
+      }
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#6366f1"
+      },
+      "package": "com.questofseoul.app",
+      "permissions": [
+        "CAMERA",
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_COARSE_LOCATION",
+        "RECORD_AUDIO"
+      ]
+    },
+    "plugins": [
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Allow Quest of Seoul to access your camera for AR experiences."
+        }
+      ],
+      [
+        "expo-location",
+        {
+          "locationAlwaysAndWhenInUsePermission": "Allow Quest of Seoul to use your location to find nearby quests."
+        }
+      ]
+    ],
+    "extra": {
+      "API_URL": "https://qos-qtj6.onrender.com"
+    }
+  }
+}
