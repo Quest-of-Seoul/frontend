@@ -6,12 +6,13 @@ import axios from 'axios';
 import { Platform } from 'react-native';
 import Constants from 'expo-constants';
 import { isExpoGo } from '../utils/audio';
+import { API_URL } from '@env';
 
 // 🚀 환경별 자동 API URL 감지
 const getApiUrl = () => {
-  // 1. app.json의 extra.API_URL이 설정되어 있으면 우선 사용
-  if (Constants.expoConfig?.extra?.API_URL) {
-    return Constants.expoConfig.extra.API_URL;
+  // 1. 환경 변수에서 API_URL이 설정되어 있으면 우선 사용
+  if (API_URL) {
+    return API_URL;
   }
 
   // 2. 배포 환경 (Production)

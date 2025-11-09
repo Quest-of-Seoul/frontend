@@ -12,6 +12,8 @@ quest-of-seoul/frontend/
 ├── app.json                    # Expo 설정 파일
 ├── babel.config.js             # Babel 설정
 ├── package.json                # 의존성 및 스크립트
+├── .env                        # 환경 변수 (Git에서 제외됨)
+├── .env.example               # 환경 변수 예제 파일
 ├── assets/                     # 정적 자원
 │   ├── ai_docent.png          # AI 캐릭터 이미지
 │   └── adaptive-icon.png      # 앱 아이콘
@@ -74,6 +76,7 @@ quest-of-seoul/frontend/
 ### 기타 유틸리티
 - **expo-constants 18.0.10** - 앱 설정 액세스
 - **@expo/vector-icons 15.0.3** - 아이콘 라이브러리
+- **react-native-dotenv** - 환경 변수 관리
 
 ## 4. 아키텍처 패턴
 
@@ -174,11 +177,11 @@ App.js (세션 체크)
 
 #### 기본 설정
 - 환경 자동 감지 (개발/프로덕션)
+- `.env` 파일을 통한 환경 변수 관리 (`API_URL`)
 - 플랫폼별 localhost 처리:
   - Android 에뮬레이터: `10.0.2.2`
   - iOS: Expo 호스트에서 자동 감지
   - 프로덕션: `https://qos-qtj6.onrender.com`
-- `app.json`의 `extra.API_URL`을 통한 설정 가능
 - 30초 타임아웃
 
 #### API 엔드포인트
@@ -209,7 +212,9 @@ App.js (세션 체크)
 ### 인증
 **위치**: `src/utils/supabase.js`
 
-- Supabase URL: `https://updggeneerdvwyqtzjoz.supabase.co`
+- Supabase 설정을 `.env` 파일에서 관리:
+  - `SUPABASE_URL`: Supabase 프로젝트 URL
+  - `SUPABASE_ANON_KEY`: Supabase Anonymous Key
 - 함수: `signUp`, `signIn`, `signOut`, `getSession`, `getCurrentUser`
 - 세션 지속성을 위한 AsyncStorage
 - 자동 토큰 갱신 활성화
@@ -262,13 +267,29 @@ App.js (세션 체크)
 
 ## 8. 설정 파일
 
+### .env - 환경 변수
+**위치**: `.env` (Git에서 제외됨)
+
+민감한 정보와 환경별 설정을 관리:
+- `SUPABASE_URL`: Supabase 프로젝트 URL
+- `SUPABASE_ANON_KEY`: Supabase Anonymous Key
+- `API_URL`: FastAPI 백엔드 URL
+
+**사용법**:
+```bash
+# .env.example을 .env로 복사
+cp .env.example .env
+
+# 변경 후 앱 재시작 (캐시 클리어)
+npx expo start --clear
+```
+
 ### app.json - Expo 설정
 - 앱 메타데이터 (이름, slug, 버전)
 - 플랫폼 설정 (iOS/Android)
 - 권한: 카메라, 위치, 오디오 녹음
 - 번들 식별자: `com.questofseoul.app`
 - 카메라 및 위치용 Expo 플러그인
-- 환경 변수: `API_URL` → `https://qos-qtj6.onrender.com`
 - 스플래시 화면: 인디고 배경(#6366f1)
 
 ### package.json - 프로젝트 의존성
@@ -278,7 +299,11 @@ App.js (세션 체크)
 
 ### babel.config.js - Babel 설정
 - Preset: `babel-preset-expo` (Expo 권장 설정)
-- Plugin: `react-native-reanimated/plugin` (애니메이션에 필요)
+- Plugins:
+  - `react-native-reanimated/plugin` (애니메이션에 필요)
+  - `module:react-native-dotenv` (환경 변수 지원)
+    - 모듈명: `@env`
+    - `.env` 파일에서 변수 로드
 
 ### 오디오 유틸리티
 **위치**: `src/utils/audio.js`
@@ -312,6 +337,7 @@ WebSocket → 청크 수집 → 결합 → 재생
 4. **현대적인 React 패턴**: Hooks, 함수형 컴포넌트
 5. **플랫폼 인식**: Android/iOS 특정 설정
 6. **실시간 기능**: 향상된 UX를 위한 WebSocket 스트리밍
+7. **보안 강화**: 환경 변수를 통한 민감한 정보 관리
 
 ### 주목할 만한 설계 결정
 1. **전역 상태 관리 없음**: 단순한 앱, 컴포넌트 레벨 상태로 충분
@@ -319,6 +345,7 @@ WebSocket → 청크 수집 → 결합 → 재생
 3. **Expo 에코시스템**: 네이티브 기능을 통한 빠른 개발
 4. **REST + WebSocket 하이브리드**: 다양한 배포 시나리오의 유연성
 5. **파일 기반 오디오 캐싱**: 스트리밍 끊김 방지
+6. **환경 변수 관리**: react-native-dotenv를 통한 안전한 설정 관리
 
 ### 향후 개선 영역
 1. 지도 컴포넌트(QuestMap.js) 현재 미활용

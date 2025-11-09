@@ -49,7 +49,9 @@
       ]
     ],
     "extra": {
-      "API_URL": "https://qos-qtj6.onrender.com"
+      "eas": {
+        "projectId": "quest-of-seoul"
+      }
     }
   }
 }
