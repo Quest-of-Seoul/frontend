@@ -6,21 +6,22 @@ import axios from 'axios';
 import { Platform } from 'react-native';
 import Constants from 'expo-constants';
 import { isExpoGo } from '../utils/audio';
-import { API_URL } from '@env';
 
-// 🚀 환경별 자동 API URL 감지
+// 🚀 API URL 감지
 const getApiUrl = () => {
-  // 1. 환경 변수에서 API_URL이 설정되어 있으면 우선 사용
+  // 1. .env에서 API_URL 사용 (로컬 또는 Render 서버)
+  const API_URL = Constants.expoConfig?.extra?.API_URL;
+
   if (API_URL) {
-    return API_URL;
+    const url = API_URL.trim();
+    // http:// 또는 https://가 없으면 자동 추가
+    if (!url.startsWith('http://') && !url.startsWith('https://')) {
+      return `http://${url}`;
+    }
+    return url;
   }
 
-  // 2. 배포 환경 (Production)
-  if (__DEV__ === false) {
-    return 'https://qos-qtj6.onrender.com'; // Render 배포 URL
-  }
-
-  // 3. 개발 환경 - 플랫폼별 자동 감지
+  // 2. 폴백: 플랫폼별 localhost 자동 감지
   const localhost = Platform.select({
     // Android 에뮬레이터
     android: '10.0.2.2',
