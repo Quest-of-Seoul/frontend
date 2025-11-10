@@ -3,11 +3,13 @@
  * Main App Entry Point
  */
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect } from 'react';
 import { View, ActivityIndicator, StyleSheet } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { createStackNavigator } from '@react-navigation/stack';
-import { getSession } from './src/utils/supabase';
+
+import useAuthStore from './src/stores/authStore';
+import { PRIMARY, BACKGROUND_LIGHT, WHITE } from './src/constants';
 
 import LoginScreen from './src/screens/LoginScreen';
 import HomeScreen from './src/screens/HomeScreen';
@@ -18,36 +20,16 @@ import RewardScreen from './src/screens/RewardScreen';
 const Stack = createStackNavigator();
 
 function App() {
-  const [isLoading, setIsLoading] = useState(true);
-  const [initialRoute, setInitialRoute] = useState('Login');
+  const { isAuthenticated, isLoading, checkAuth } = useAuthStore();
 
   useEffect(() => {
-    checkSession();
+    checkAuth();
   }, []);
-
-  const checkSession = async () => {
-    try {
-      const session = await getSession();
-
-      if (session) {
-        console.log('✅ 세션 존재, Home으로 이동');
-        setInitialRoute('Home');
-      } else {
-        console.log('❌ 세션 없음, Login으로 이동');
-        setInitialRoute('Login');
-      }
-    } catch (error) {
-      console.error('세션 체크 에러:', error);
-      setInitialRoute('Login');
-    } finally {
-      setIsLoading(false);
-    }
-  };
 
   if (isLoading) {
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#6366f1" />
+        <ActivityIndicator size="large" color={PRIMARY} />
       </View>
     );
   }
@@ -55,12 +37,12 @@ function App() {
   return (
     <NavigationContainer>
       <Stack.Navigator
-        initialRouteName={initialRoute}
+        initialRouteName={isAuthenticated ? 'Home' : 'Login'}
         screenOptions={{
           headerStyle: {
-            backgroundColor: '#6366f1',
+            backgroundColor: PRIMARY,
           },
-          headerTintColor: '#fff',
+          headerTintColor: WHITE,
           headerTitleStyle: {
             fontWeight: 'bold',
           },
@@ -70,7 +52,7 @@ function App() {
           name="Login"
           component={LoginScreen}
           options={{
-            headerShown: false, // 로그인 화면은 헤더 숨김
+            headerShown: false,
           }}
         />
         <Stack.Screen
@@ -106,7 +88,7 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#f9fafb',
+    backgroundColor: BACKGROUND_LIGHT,
   },
 });
 
