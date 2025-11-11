@@ -23,6 +23,9 @@ export default {
         NSLocationAlwaysUsageDescription:
           "This app uses your location to show nearby quests.",
       },
+      config: {
+        googleMapsApiKey: process.env.GOOGLE_MAPS_API_KEY,
+      },
     },
     android: {
       adaptiveIcon: {
@@ -36,6 +39,11 @@ export default {
         "ACCESS_COARSE_LOCATION",
         "RECORD_AUDIO",
       ],
+      config: {
+        googleMaps: {
+          apiKey: process.env.GOOGLE_MAPS_API_KEY,
+        },
+      },
     },
     plugins: [
       [
@@ -61,6 +69,9 @@ export default {
       SUPABASE_URL: process.env.SUPABASE_URL,
       SUPABASE_ANON_KEY: process.env.SUPABASE_ANON_KEY,
       API_URL: process.env.API_URL,
+      GOOGLE_MAPS_API_KEY: process.env.GOOGLE_MAPS_API_KEY,
+      KAKAO_MAP_API_KEY: process.env.KAKAO_MAP_API_KEY,
+      KAKAO_REST_API_KEY: process.env.KAKAO_REST_API_KEY,
     },
   },
 };

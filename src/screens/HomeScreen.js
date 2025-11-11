@@ -3,7 +3,7 @@
  * Main landing screen with navigation to features
  */
 
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
 import {
   View,
   Text,
@@ -15,12 +15,16 @@ import {
   TextInput,
   Modal,
   Image,
+  ActivityIndicator,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useFocusEffect } from '@react-navigation/native';
+import * as Location from 'expo-location';
 import { getCurrentUser, signOut } from '../utils/supabase';
-import { getUserPoints } from '../api/fastapi';
+import { getUserPoints, getNearbyQuests } from '../api/fastapi';
+import { calculateDistance, getWalkingRoute } from '../utils/navigation';
 import TabBar from '../components/TabBar';
+import SimpleKakaoMap from '../components/SimpleKakaoMap';
 
 const HomeScreen = ({ navigation }) => {
   const [user, setUser] = useState(null);
@@ -33,10 +37,84 @@ const HomeScreen = ({ navigation }) => {
   const [selectedPlace, setSelectedPlace] = useState(null);
   const [filterModalVisible, setFilterModalVisible] = useState(false);
 
+  // Map state
+  const [currentLocation, setCurrentLocation] = useState(null);
+  const [region, setRegion] = useState({
+    latitude: 37.5665, // Seoul City Hall
+    longitude: 126.9780,
+    latitudeDelta: 0.05,
+    longitudeDelta: 0.05,
+  });
+  const [quests, setQuests] = useState([]);
+  const webViewRef = useRef(null);
+
   // Load user data once on mount
   useEffect(() => {
     loadUserData();
+    requestLocationPermission();
+
+    // 🧪 테스트: 서울 시청 위치로 퀘스트 가져오기 (위치 상관없이)
+    fetchNearbyQuests(37.5665, 126.9780);
   }, []);
+
+  // Request location permission and watch location in real-time
+  const requestLocationPermission = async () => {
+    try {
+      const { status } = await Location.requestForegroundPermissionsAsync();
+
+      if (status === 'granted') {
+        // 초기 위치 가져오기
+        const location = await Location.getCurrentPositionAsync({});
+        const { latitude, longitude } = location.coords;
+
+        setCurrentLocation({ latitude, longitude });
+        setRegion({
+          latitude,
+          longitude,
+          latitudeDelta: 0.05,
+          longitudeDelta: 0.05,
+        });
+
+        console.log('📍 Initial location:', latitude, longitude);
+
+        // 실시간 위치 추적 시작
+        const subscription = await Location.watchPositionAsync(
+          {
+            accuracy: Location.Accuracy.High,
+            timeInterval: 2000, // 2초마다 업데이트 (빠른 반응)
+            distanceInterval: 5, // 5미터 이동 시 업데이트 (민감하게)
+          },
+          (newLocation) => {
+            const { latitude, longitude } = newLocation.coords;
+            console.log('🔄 Location updated:', latitude, longitude);
+
+            setCurrentLocation({ latitude, longitude });
+            setRegion({
+              latitude,
+              longitude,
+              latitudeDelta: 0.05,
+              longitudeDelta: 0.05,
+            });
+
+            // 위치 변경 시 주변 퀘스트 다시 가져오기
+            fetchNearbyQuests(latitude, longitude);
+          }
+        );
+
+        // 초기 퀘스트 로드
+        fetchNearbyQuests(latitude, longitude);
+
+        // Cleanup: 컴포넌트 언마운트 시 구독 해제
+        return () => {
+          subscription.remove();
+        };
+      } else {
+        console.log('⚠️ Location permission denied');
+      }
+    } catch (error) {
+      console.error('Error getting location:', error);
+    }
+  };
 
   // Refresh points whenever screen is focused
   useFocusEffect(
@@ -89,8 +167,174 @@ const HomeScreen = ({ navigation }) => {
     }
   };
 
-  const navigateToQuests = () => {
-    navigation.navigate('Quest');
+  // 주변 퀘스트 가져오기
+  const fetchNearbyQuests = async (latitude, longitude) => {
+    try {
+      console.log('🔍 Fetching nearby quests:', latitude, longitude);
+      const nearbyQuests = await getNearbyQuests(latitude, longitude, 50.0); // 50km 반경 (테스트용)
+      console.log('✅ Nearby quests:', nearbyQuests);
+
+      // 퀘스트가 없으면 테스트용 Mock 데이터 사용 (현재 위치 주변 200-800m)
+      if (!nearbyQuests.quests || nearbyQuests.quests.length === 0) {
+        console.log('⚠️ No quests from API, using mock data near current location');
+
+        // 현재 위치 주변에 랜덤 마커 생성 (100m ~ 500m 반경)
+        const mockQuests = [
+          {
+            quest_id: 1,
+            title: '테스트 퀘스트 1',
+            latitude: latitude + 0.0015, // 약 165m 북쪽
+            longitude: longitude + 0.0010, // 약 100m 동쪽
+            category: 'Heritage',
+            distance_km: 0.2,
+            reward_point: 300,
+            address: '주변 장소 1',
+            description: '현재 위치 근처 테스트 퀘스트입니다.',
+          },
+          {
+            quest_id: 2,
+            title: '테스트 퀘스트 2',
+            latitude: latitude - 0.0020, // 약 220m 남쪽
+            longitude: longitude + 0.0015, // 약 150m 동쪽
+            category: 'Landmark',
+            distance_km: 0.3,
+            reward_point: 250,
+            address: '주변 장소 2',
+            description: '현재 위치 근처 테스트 퀘스트입니다.',
+          },
+          {
+            quest_id: 3,
+            title: '테스트 퀘스트 3',
+            latitude: latitude + 0.0025, // 약 275m 북쪽
+            longitude: longitude - 0.0010, // 약 100m 서쪽
+            category: 'Shopping',
+            distance_km: 0.3,
+            reward_point: 200,
+            address: '주변 장소 3',
+            description: '현재 위치 근처 테스트 퀘스트입니다.',
+          },
+          {
+            quest_id: 4,
+            title: '테스트 퀘스트 4',
+            latitude: latitude - 0.0010, // 약 110m 남쪽
+            longitude: longitude - 0.0020, // 약 200m 서쪽
+            category: 'Food',
+            distance_km: 0.2,
+            reward_point: 150,
+            address: '주변 장소 4',
+            description: '현재 위치 근처 테스트 퀘스트입니다.',
+          },
+          {
+            quest_id: 5,
+            title: '테스트 퀘스트 5',
+            latitude: latitude + 0.0030, // 약 330m 북쪽
+            longitude: longitude + 0.0020, // 약 200m 동쪽
+            category: 'Culture',
+            distance_km: 0.4,
+            reward_point: 400,
+            address: '주변 장소 5',
+            description: '현재 위치 근처 테스트 퀘스트입니다.',
+          },
+          {
+            quest_id: 6,
+            title: '테스트 퀘스트 6',
+            latitude: latitude + 0.0008, // 약 88m 북쪽
+            longitude: longitude + 0.0008, // 약 80m 동쪽
+            category: 'Culture',
+            distance_km: 0.1,
+            reward_point: 100,
+            address: '주변 장소 6',
+            description: '아주 가까운 테스트 퀘스트입니다.',
+          },
+        ];
+        console.log('📍 Generated mock quests around:', latitude, longitude);
+        setQuests(mockQuests);
+      } else {
+        setQuests(nearbyQuests.quests || []);
+      }
+    } catch (error) {
+      console.error('❌ Error fetching nearby quests:', error);
+
+      // API 에러 시에도 현재 위치 주변 Mock 데이터 표시
+      console.log('⚠️ API error, using mock data near current location');
+      const mockQuests = [
+        {
+          quest_id: 1,
+          title: '테스트 퀘스트 1',
+          latitude: latitude + 0.0015,
+          longitude: longitude + 0.0010,
+          category: 'Heritage',
+          distance_km: 0.2,
+          reward_point: 300,
+          address: '주변 장소 1',
+          description: '현재 위치 근처 테스트 퀘스트입니다.',
+        },
+        {
+          quest_id: 2,
+          title: '테스트 퀘스트 2',
+          latitude: latitude - 0.0020,
+          longitude: longitude + 0.0015,
+          category: 'Landmark',
+          distance_km: 0.3,
+          reward_point: 250,
+          address: '주변 장소 2',
+          description: '현재 위치 근처 테스트 퀘스트입니다.',
+        },
+        {
+          quest_id: 3,
+          title: '테스트 퀘스트 3',
+          latitude: latitude + 0.0025,
+          longitude: longitude - 0.0010,
+          category: 'Shopping',
+          distance_km: 0.3,
+          reward_point: 200,
+          address: '주변 장소 3',
+          description: '현재 위치 근처 테스트 퀘스트입니다.',
+        },
+        {
+          quest_id: 4,
+          title: '테스트 퀘스트 4',
+          latitude: latitude - 0.0010,
+          longitude: longitude - 0.0020,
+          category: 'Food',
+          distance_km: 0.2,
+          reward_point: 150,
+          address: '주변 장소 4',
+          description: '현재 위치 근처 테스트 퀘스트입니다.',
+        },
+        {
+          quest_id: 5,
+          title: '테스트 퀘스트 5',
+          latitude: latitude + 0.0030,
+          longitude: longitude + 0.0020,
+          category: 'Culture',
+          distance_km: 0.4,
+          reward_point: 400,
+          address: '주변 장소 5',
+          description: '현재 위치 근처 테스트 퀘스트입니다.',
+        },
+        {
+          quest_id: 6,
+          title: '테스트 퀘스트 6',
+          latitude: latitude + 0.0008,
+          longitude: longitude + 0.0008,
+          category: 'Culture',
+          distance_km: 0.1,
+          reward_point: 100,
+          address: '주변 장소 6',
+          description: '아주 가까운 테스트 퀘스트입니다.',
+        },
+      ];
+      setQuests(mockQuests);
+    }
+  };
+
+  const navigateToQuests = (questData = null) => {
+    if (questData) {
+      navigation.navigate('Quest', { selectedQuest: questData });
+    } else {
+      navigation.navigate('Quest');
+    }
   };
 
   const navigateToAR = () => {
@@ -110,18 +354,94 @@ const HomeScreen = ({ navigation }) => {
     }
   };
 
-  // Mock place tap handler for the map area (replace with real marker press)
-  const handleMapTap = () => {
+  // 퀘스트 마커 클릭 핸들러
+  const handleQuestMarkerPress = (quest) => {
+    console.log('🎯 Quest marker pressed:', quest);
     setSelectedPlace({
-      name: 'Gyeongbokgung Palace',
-      category: 'Heritage',
-      distanceKm: 3.5,
-      rewardPoint: 300,
-      address: '161 Sajik-ro, Jongno-gu, Seoul',
-      overview:
-        'Gyeongbokgung Palace was built in 1395 as the main royal palace of the Joseon dynasty.',
+      name: quest.title || quest.name,
+      category: quest.category || 'Quest',
+      distanceKm: quest.distance_km || 0,
+      rewardPoint: quest.reward_point || 0,
+      address: quest.address || quest.location,
+      overview: quest.description || quest.overview || '',
+      questId: quest.quest_id || quest.id,
+      latitude: quest.latitude || quest.lat,
+      longitude: quest.longitude || quest.lon,
     });
     setPlaceModalVisible(true);
+  };
+
+  // 네비게이션 시작 핸들러 - 거리 계산 후 앱 내 경로 표시
+  const handleStartNavigation = async () => {
+    if (!currentLocation) {
+      Alert.alert('위치 정보 없음', '현재 위치를 확인할 수 없습니다.');
+      return;
+    }
+
+    if (!selectedPlace?.latitude || !selectedPlace?.longitude) {
+      Alert.alert('오류', '퀘스트 위치 정보를 찾을 수 없습니다.');
+      return;
+    }
+
+    try {
+      // 1. 거리 계산
+      const distance = calculateDistance(
+        currentLocation.latitude,
+        currentLocation.longitude,
+        selectedPlace.latitude,
+        selectedPlace.longitude
+      );
+
+      console.log(`📏 Distance to quest: ${distance.toFixed(2)} km`);
+
+      // 2. 거리에 따른 처리
+      if (distance > 1.0) {
+        // 1km 이상이면 "너무 멀어요" 모달
+        Alert.alert(
+          '너무 멀어요 😅',
+          `목적지까지 ${distance.toFixed(2)}km 입니다.\n1km 이내의 퀘스트를 선택해주세요!`,
+          [{ text: '확인', style: 'default' }]
+        );
+      } else {
+        // 1km 이내이면 바로 경로 가져오기
+        try {
+          console.log('🚶 Starting walking quest...');
+
+          // 3. Kakao Mobility API로 경로 가져오기
+          const routeData = await getWalkingRoute(
+            currentLocation.latitude,
+            currentLocation.longitude,
+            selectedPlace.latitude,
+            selectedPlace.longitude
+          );
+
+          console.log(`✅ Route received: ${routeData.coordinates.length} points`);
+          console.log(`📏 Distance: ${routeData.distance}m, Duration: ${routeData.duration}s`);
+
+          // 4. 지도에 경로 그리기
+          if (webViewRef.current && webViewRef.current.drawRoute) {
+            webViewRef.current.drawRoute(routeData.coordinates);
+            setPlaceModalVisible(false);
+
+            // 간단한 토스트 메시지
+            Alert.alert(
+              '걷기 퀘스트 시작! 🚶',
+              `거리: ${routeData.distance}m · 예상 시간: ${Math.ceil(routeData.duration / 60)}분`,
+              [{ text: '확인' }]
+            );
+          } else {
+            console.error('❌ Map ref not available');
+            Alert.alert('오류', '지도를 사용할 수 없습니다.');
+          }
+        } catch (routeError) {
+          console.error('❌ Route error:', routeError);
+          Alert.alert('경로 조회 실패', routeError.message || '경로를 가져올 수 없습니다.');
+        }
+      }
+    } catch (error) {
+      console.error('❌ Navigation error:', error);
+      Alert.alert('오류', '거리 계산에 실패했습니다.');
+    }
   };
 
   const handleLogout = () => {
@@ -155,6 +475,13 @@ const HomeScreen = ({ navigation }) => {
           )}
         </View>
         <Text style={styles.subtitle}>AI AR 도슨트와 함께하는 서울 탐험</Text>
+
+        {/* 현재 위치 좌표 표시 */}
+        {currentLocation && (
+          <Text style={styles.locationCoords}>
+            📍 현재 위치: {currentLocation.latitude.toFixed(6)}, {currentLocation.longitude.toFixed(6)}
+          </Text>
+        )}
 
         <View style={styles.searchContainer}>
           <TextInput
@@ -204,11 +531,16 @@ const HomeScreen = ({ navigation }) => {
         )}
       </View>
 
-      {/* Middle: Map area (placeholder touch to open modal) */}
+      {/* Middle: Map area with Kakao Map */}
       <View style={styles.mapArea}>
-        <TouchableOpacity style={styles.mapPlaceholder} activeOpacity={0.9} onPress={handleMapTap}>
-          <Text style={styles.mapHint}>Tap the map to preview a place</Text>
-        </TouchableOpacity>
+        <SimpleKakaoMap
+          ref={webViewRef}
+          latitude={currentLocation?.latitude || region.latitude}
+          longitude={currentLocation?.longitude || region.longitude}
+          quests={quests}
+          onMarkerPress={handleQuestMarkerPress}
+          style={styles.map}
+        />
       </View>
 
       {/* Bottom Sheet Modal for place info */}
@@ -230,15 +562,25 @@ const HomeScreen = ({ navigation }) => {
             <Text style={styles.modalOverview} numberOfLines={3}>
               {selectedPlace?.overview}
             </Text>
-            <TouchableOpacity
-              style={styles.startButton}
-              onPress={() => {
-                setPlaceModalVisible(false);
-                navigateToQuests();
-              }}
-            >
-              <Text style={styles.startButtonText}>퀘스트 상세 보기</Text>
-            </TouchableOpacity>
+
+            {/* Button Row */}
+            <View style={styles.modalButtonRow}>
+              <TouchableOpacity
+                style={styles.navigationButton}
+                onPress={handleStartNavigation}
+              >
+                <Text style={styles.navigationButtonText}>📍 길찾기</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.detailButton}
+                onPress={() => {
+                  setPlaceModalVisible(false);
+                  navigateToQuests(selectedPlace);
+                }}
+              >
+                <Text style={styles.detailButtonText}>상세 보기</Text>
+              </TouchableOpacity>
+            </View>
           </View>
         </View>
       </Modal>
@@ -344,6 +686,12 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#475569',
   },
+  locationCoords: {
+    fontSize: 12,
+    color: '#64748b',
+    marginTop: 4,
+    fontFamily: 'monospace',
+  },
   searchContainer: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -434,19 +782,12 @@ const styles = StyleSheet.create({
   mapArea: {
     flex: 1,
     backgroundColor: '#f3f7ff',
+    padding: 16,
   },
-  mapPlaceholder: {
+  map: {
     flex: 1,
-    margin: 16,
     borderRadius: 16,
-    borderWidth: 1,
-    borderColor: '#cbd5e1',
-    backgroundColor: '#ffffff',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  mapHint: {
-    color: '#64748b',
+    overflow: 'hidden',
   },
   modalBackdrop: {
     flex: 1,
@@ -509,6 +850,37 @@ const styles = StyleSheet.create({
     color: '#e2e8f0',
     marginTop: 10,
     lineHeight: 20,
+  },
+  modalButtonRow: {
+    flexDirection: 'row',
+    gap: 10,
+    marginTop: 14,
+  },
+  navigationButton: {
+    flex: 1,
+    backgroundColor: '#6366f1',
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 12,
+  },
+  navigationButtonText: {
+    color: '#ffffff',
+    fontWeight: '700',
+    fontSize: 14,
+  },
+  detailButton: {
+    flex: 1,
+    backgroundColor: '#f97316',
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 12,
+  },
+  detailButtonText: {
+    color: '#ffffff',
+    fontWeight: '700',
+    fontSize: 14,
   },
   startButton: {
     backgroundColor: '#f97316',
