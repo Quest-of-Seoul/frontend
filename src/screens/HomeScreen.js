@@ -16,6 +16,7 @@ import {
   Modal,
   Image,
   ActivityIndicator,
+  Linking,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useFocusEffect } from '@react-navigation/native';
@@ -47,6 +48,9 @@ const HomeScreen = ({ navigation }) => {
   });
   const [quests, setQuests] = useState([]);
   const webViewRef = useRef(null);
+
+  // 거리가 너무 먼 경우 오버레이 표시
+  const [showDistanceOverlay, setShowDistanceOverlay] = useState(false);
 
   // Load user data once on mount
   useEffect(() => {
@@ -174,90 +178,243 @@ const HomeScreen = ({ navigation }) => {
       const nearbyQuests = await getNearbyQuests(latitude, longitude, 50.0); // 50km 반경 (테스트용)
       console.log('✅ Nearby quests:', nearbyQuests);
 
-      // 퀘스트가 없으면 테스트용 Mock 데이터 사용 (현재 위치 주변 200-800m)
-      if (!nearbyQuests.quests || nearbyQuests.quests.length === 0) {
-        console.log('⚠️ No quests from API, using mock data near current location');
+      // 서울 주요 관광지 마커 (항상 표시)
+      const seoulLandmarks = [
+        {
+          quest_id: 101,
+          title: '경복궁',
+          latitude: 37.5796,
+          longitude: 126.9770,
+          category: 'Heritage',
+          distance_km: 2.0,
+          reward_point: 500,
+          address: '서울특별시 종로구 사직로 161',
+          description: '조선 왕조의 정궁',
+        },
+        {
+          quest_id: 102,
+          title: '남산 N서울타워',
+          latitude: 37.5512,
+          longitude: 126.9882,
+          category: 'Landmark',
+          distance_km: 3.5,
+          reward_point: 400,
+          address: '서울특별시 용산구 남산공원길 105',
+          description: '서울의 랜드마크 타워',
+        },
+        {
+          quest_id: 103,
+          title: '명동 쇼핑거리',
+          latitude: 37.5636,
+          longitude: 126.9864,
+          category: 'Shopping',
+          distance_km: 1.5,
+          reward_point: 300,
+          address: '서울특별시 중구 명동',
+          description: '서울 최대 쇼핑 거리',
+        },
+        {
+          quest_id: 104,
+          title: '광화문 광장',
+          latitude: 37.5720,
+          longitude: 126.9769,
+          category: 'Heritage',
+          distance_km: 1.2,
+          reward_point: 250,
+          address: '서울특별시 종로구 세종로',
+          description: '세종대왕 동상이 있는 광장',
+        },
+        {
+          quest_id: 105,
+          title: '홍대 거리',
+          latitude: 37.5563,
+          longitude: 126.9224,
+          category: 'K-culture',
+          distance_km: 5.0,
+          reward_point: 400,
+          address: '서울특별시 마포구 홍익로',
+          description: '젊음의 거리, 예술과 문화의 중심',
+        },
+        {
+          quest_id: 106,
+          title: '강남역',
+          latitude: 37.4979,
+          longitude: 127.0276,
+          category: 'Shopping',
+          distance_km: 8.0,
+          reward_point: 350,
+          address: '서울특별시 강남구 강남대로',
+          description: '강남 스타일의 중심지',
+        },
+        {
+          quest_id: 107,
+          title: '북촌 한옥마을',
+          latitude: 37.5824,
+          longitude: 126.9833,
+          category: 'Heritage',
+          distance_km: 2.3,
+          reward_point: 450,
+          address: '서울특별시 종로구 계동',
+          description: '전통 한옥이 보존된 마을',
+        },
+        {
+          quest_id: 108,
+          title: '이태원',
+          latitude: 37.5345,
+          longitude: 126.9948,
+          category: 'Cuisine',
+          distance_km: 3.0,
+          reward_point: 300,
+          address: '서울특별시 용산구 이태원동',
+          description: '세계 각국의 음식을 맛볼 수 있는 거리',
+        },
+      ];
 
-        // 현재 위치 주변에 랜덤 마커 생성 (100m ~ 500m 반경)
-        const mockQuests = [
-          {
-            quest_id: 1,
-            title: '테스트 퀘스트 1',
-            latitude: latitude + 0.0015, // 약 165m 북쪽
-            longitude: longitude + 0.0010, // 약 100m 동쪽
-            category: 'Heritage',
-            distance_km: 0.2,
-            reward_point: 300,
-            address: '주변 장소 1',
-            description: '현재 위치 근처 테스트 퀘스트입니다.',
-          },
-          {
-            quest_id: 2,
-            title: '테스트 퀘스트 2',
-            latitude: latitude - 0.0020, // 약 220m 남쪽
-            longitude: longitude + 0.0015, // 약 150m 동쪽
-            category: 'Landmark',
-            distance_km: 0.3,
-            reward_point: 250,
-            address: '주변 장소 2',
-            description: '현재 위치 근처 테스트 퀘스트입니다.',
-          },
-          {
-            quest_id: 3,
-            title: '테스트 퀘스트 3',
-            latitude: latitude + 0.0025, // 약 275m 북쪽
-            longitude: longitude - 0.0010, // 약 100m 서쪽
-            category: 'Shopping',
-            distance_km: 0.3,
-            reward_point: 200,
-            address: '주변 장소 3',
-            description: '현재 위치 근처 테스트 퀘스트입니다.',
-          },
-          {
-            quest_id: 4,
-            title: '테스트 퀘스트 4',
-            latitude: latitude - 0.0010, // 약 110m 남쪽
-            longitude: longitude - 0.0020, // 약 200m 서쪽
-            category: 'Food',
-            distance_km: 0.2,
-            reward_point: 150,
-            address: '주변 장소 4',
-            description: '현재 위치 근처 테스트 퀘스트입니다.',
-          },
-          {
-            quest_id: 5,
-            title: '테스트 퀘스트 5',
-            latitude: latitude + 0.0030, // 약 330m 북쪽
-            longitude: longitude + 0.0020, // 약 200m 동쪽
-            category: 'Culture',
-            distance_km: 0.4,
-            reward_point: 400,
-            address: '주변 장소 5',
-            description: '현재 위치 근처 테스트 퀘스트입니다.',
-          },
-          {
-            quest_id: 6,
-            title: '테스트 퀘스트 6',
-            latitude: latitude + 0.0008, // 약 88m 북쪽
-            longitude: longitude + 0.0008, // 약 80m 동쪽
-            category: 'Culture',
-            distance_km: 0.1,
-            reward_point: 100,
-            address: '주변 장소 6',
-            description: '아주 가까운 테스트 퀘스트입니다.',
-          },
-        ];
-        console.log('📍 Generated mock quests around:', latitude, longitude);
-        setQuests(mockQuests);
-      } else {
-        setQuests(nearbyQuests.quests || []);
-      }
+      // 현재 위치 주변 마커 (100m ~ 500m)
+      const nearbyMockQuests = [
+        {
+          quest_id: 1,
+          title: '테스트 퀘스트 1',
+          latitude: latitude + 0.0015, // 약 165m 북쪽
+          longitude: longitude + 0.0010, // 약 100m 동쪽
+          category: 'Heritage',
+          distance_km: 0.2,
+          reward_point: 300,
+          address: '주변 장소 1',
+          description: '현재 위치 근처 테스트 퀘스트입니다.',
+        },
+        {
+          quest_id: 2,
+          title: '테스트 퀘스트 2',
+          latitude: latitude - 0.0020, // 약 220m 남쪽
+          longitude: longitude + 0.0015, // 약 150m 동쪽
+          category: 'Landmark',
+          distance_km: 0.3,
+          reward_point: 250,
+          address: '주변 장소 2',
+          description: '현재 위치 근처 테스트 퀘스트입니다.',
+        },
+        {
+          quest_id: 3,
+          title: '테스트 퀘스트 3',
+          latitude: latitude + 0.0025, // 약 275m 북쪽
+          longitude: longitude - 0.0010, // 약 100m 서쪽
+          category: 'Shopping',
+          distance_km: 0.3,
+          reward_point: 200,
+          address: '주변 장소 3',
+          description: '현재 위치 근처 테스트 퀘스트입니다.',
+        },
+      ];
+
+      // API 퀘스트가 있으면 추가, 없으면 Mock만 사용
+      const apiQuests = (nearbyQuests.quests && nearbyQuests.quests.length > 0)
+        ? nearbyQuests.quests
+        : [];
+
+      // 서울 관광지 + 현재 위치 주변 + API 퀘스트 모두 합치기
+      const allQuests = [...seoulLandmarks, ...nearbyMockQuests, ...apiQuests];
+
+      console.log('📍 Total quests:', allQuests.length, '(Seoul:', seoulLandmarks.length, '+ Nearby:', nearbyMockQuests.length, '+ API:', apiQuests.length + ')');
+      setQuests(allQuests);
     } catch (error) {
       console.error('❌ Error fetching nearby quests:', error);
 
-      // API 에러 시에도 현재 위치 주변 Mock 데이터 표시
-      console.log('⚠️ API error, using mock data near current location');
-      const mockQuests = [
+      // API 에러 시에도 서울 관광지 + 현재 위치 주변 Mock 데이터 표시
+      console.log('⚠️ API error, using mock data');
+
+      const seoulLandmarks = [
+        {
+          quest_id: 101,
+          title: '경복궁',
+          latitude: 37.5796,
+          longitude: 126.9770,
+          category: 'Heritage',
+          distance_km: 2.0,
+          reward_point: 500,
+          address: '서울특별시 종로구 사직로 161',
+          description: '조선 왕조의 정궁',
+        },
+        {
+          quest_id: 102,
+          title: '남산 N서울타워',
+          latitude: 37.5512,
+          longitude: 126.9882,
+          category: 'Landmark',
+          distance_km: 3.5,
+          reward_point: 400,
+          address: '서울특별시 용산구 남산공원길 105',
+          description: '서울의 랜드마크 타워',
+        },
+        {
+          quest_id: 103,
+          title: '명동 쇼핑거리',
+          latitude: 37.5636,
+          longitude: 126.9864,
+          category: 'Shopping',
+          distance_km: 1.5,
+          reward_point: 300,
+          address: '서울특별시 중구 명동',
+          description: '서울 최대 쇼핑 거리',
+        },
+        {
+          quest_id: 104,
+          title: '광화문 광장',
+          latitude: 37.5720,
+          longitude: 126.9769,
+          category: 'Heritage',
+          distance_km: 1.2,
+          reward_point: 250,
+          address: '서울특별시 종로구 세종로',
+          description: '세종대왕 동상이 있는 광장',
+        },
+        {
+          quest_id: 105,
+          title: '홍대 거리',
+          latitude: 37.5563,
+          longitude: 126.9224,
+          category: 'K-culture',
+          distance_km: 5.0,
+          reward_point: 400,
+          address: '서울특별시 마포구 홍익로',
+          description: '젊음의 거리, 예술과 문화의 중심',
+        },
+        {
+          quest_id: 106,
+          title: '강남역',
+          latitude: 37.4979,
+          longitude: 127.0276,
+          category: 'Shopping',
+          distance_km: 8.0,
+          reward_point: 350,
+          address: '서울특별시 강남구 강남대로',
+          description: '강남 스타일의 중심지',
+        },
+        {
+          quest_id: 107,
+          title: '북촌 한옥마을',
+          latitude: 37.5824,
+          longitude: 126.9833,
+          category: 'Heritage',
+          distance_km: 2.3,
+          reward_point: 450,
+          address: '서울특별시 종로구 계동',
+          description: '전통 한옥이 보존된 마을',
+        },
+        {
+          quest_id: 108,
+          title: '이태원',
+          latitude: 37.5345,
+          longitude: 126.9948,
+          category: 'Cuisine',
+          distance_km: 3.0,
+          reward_point: 300,
+          address: '서울특별시 용산구 이태원동',
+          description: '세계 각국의 음식을 맛볼 수 있는 거리',
+        },
+      ];
+
+      const nearbyMockQuests = [
         {
           quest_id: 1,
           title: '테스트 퀘스트 1',
@@ -291,41 +448,11 @@ const HomeScreen = ({ navigation }) => {
           address: '주변 장소 3',
           description: '현재 위치 근처 테스트 퀘스트입니다.',
         },
-        {
-          quest_id: 4,
-          title: '테스트 퀘스트 4',
-          latitude: latitude - 0.0010,
-          longitude: longitude - 0.0020,
-          category: 'Food',
-          distance_km: 0.2,
-          reward_point: 150,
-          address: '주변 장소 4',
-          description: '현재 위치 근처 테스트 퀘스트입니다.',
-        },
-        {
-          quest_id: 5,
-          title: '테스트 퀘스트 5',
-          latitude: latitude + 0.0030,
-          longitude: longitude + 0.0020,
-          category: 'Culture',
-          distance_km: 0.4,
-          reward_point: 400,
-          address: '주변 장소 5',
-          description: '현재 위치 근처 테스트 퀘스트입니다.',
-        },
-        {
-          quest_id: 6,
-          title: '테스트 퀘스트 6',
-          latitude: latitude + 0.0008,
-          longitude: longitude + 0.0008,
-          category: 'Culture',
-          distance_km: 0.1,
-          reward_point: 100,
-          address: '주변 장소 6',
-          description: '아주 가까운 테스트 퀘스트입니다.',
-        },
       ];
-      setQuests(mockQuests);
+
+      const allQuests = [...seoulLandmarks, ...nearbyMockQuests];
+      console.log('📍 Error fallback - Total quests:', allQuests.length);
+      setQuests(allQuests);
     }
   };
 
@@ -395,15 +522,12 @@ const HomeScreen = ({ navigation }) => {
       console.log(`📏 Distance to quest: ${distance.toFixed(2)} km`);
 
       // 2. 거리에 따른 처리
-      if (distance > 1.0) {
-        // 1km 이상이면 "너무 멀어요" 모달
-        Alert.alert(
-          '너무 멀어요 😅',
-          `목적지까지 ${distance.toFixed(2)}km 입니다.\n1km 이내의 퀘스트를 선택해주세요!`,
-          [{ text: '확인', style: 'default' }]
-        );
+      if (distance > 10.0) {
+        // 10km 이상이면 오버레이 표시
+        setShowDistanceOverlay(true);
+        setPlaceModalVisible(false);
       } else {
-        // 1km 이내이면 바로 경로 가져오기
+        // 10km 이내이면 바로 경로 가져오기
         try {
           console.log('🚶 Starting walking quest...');
 
@@ -441,6 +565,34 @@ const HomeScreen = ({ navigation }) => {
     } catch (error) {
       console.error('❌ Navigation error:', error);
       Alert.alert('오류', '거리 계산에 실패했습니다.');
+    }
+  };
+
+  // 카카오맵 앱으로 길찾기 열기
+  const openKakaoMapNavigation = async () => {
+    if (!currentLocation || !selectedPlace) return;
+
+    const { latitude: startLat, longitude: startLon } = currentLocation;
+    const { latitude: destLat, longitude: destLon, name: destName } = selectedPlace;
+
+    // 카카오맵 딥링크 (도보 길찾기)
+    const kakaoMapUrl = `kakaomap://route?sp=${startLat},${startLon}&ep=${destLat},${destLon}&by=FOOT`;
+
+    // 웹 URL (앱이 없을 경우 대체)
+    const webUrl = `https://map.kakao.com/link/to/${encodeURIComponent(destName || '목적지')},${destLat},${destLon}`;
+
+    try {
+      const canOpen = await Linking.canOpenURL(kakaoMapUrl);
+      if (canOpen) {
+        await Linking.openURL(kakaoMapUrl);
+      } else {
+        // 카카오맵 앱이 없으면 웹으로 열기
+        await Linking.openURL(webUrl);
+      }
+      setShowDistanceOverlay(false);
+    } catch (error) {
+      console.error('❌ Error opening Kakao Map:', error);
+      Alert.alert('오류', '카카오맵을 열 수 없습니다.');
     }
   };
 
@@ -541,6 +693,40 @@ const HomeScreen = ({ navigation }) => {
           onMarkerPress={handleQuestMarkerPress}
           style={styles.map}
         />
+
+        {/* 거리 초과 오버레이 */}
+        {showDistanceOverlay && (
+          <View style={styles.distanceOverlay}>
+            <View style={styles.overlayContent}>
+              <View style={styles.overlayIcon}>
+                <Text style={styles.overlayEmoji}>🦝</Text>
+                <View style={styles.overlayWarning}>
+                  <Text style={styles.overlayWarningIcon}>⚠️</Text>
+                </View>
+              </View>
+              <Text style={styles.overlayTitle}>Oh no! I can't find you</Text>
+              <Text style={styles.overlayMessage}>
+                Please move near to the{'\n'}place you've chosen.
+              </Text>
+            </View>
+
+            <TouchableOpacity
+              style={styles.overlayNavButton}
+              onPress={openKakaoMapNavigation}
+            >
+              <Text style={styles.overlayNavIcon}>🧭</Text>
+              <Text style={styles.overlayNavText}>Do you need navigation?</Text>
+              <Text style={styles.overlayNavArrow}>▶</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.overlayCloseButton}
+              onPress={() => setShowDistanceOverlay(false)}
+            >
+              <Text style={styles.overlayCloseText}>✕</Text>
+            </TouchableOpacity>
+          </View>
+        )}
       </View>
 
       {/* Bottom Sheet Modal for place info */}
@@ -982,6 +1168,99 @@ const styles = StyleSheet.create({
     color: '#ffffff',
     fontWeight: '600',
     fontSize: 14,
+  },
+  // Distance Overlay styles
+  distanceOverlay: {
+    position: 'absolute',
+    top: 10,
+    left: 10,
+    right: 10,
+    backgroundColor: '#f9f7f3',
+    borderRadius: 16,
+    padding: 20,
+    shadowColor: '#000',
+    shadowOpacity: 0.1,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 8,
+  },
+  overlayContent: {
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  overlayIcon: {
+    position: 'relative',
+    marginBottom: 12,
+  },
+  overlayEmoji: {
+    fontSize: 60,
+  },
+  overlayWarning: {
+    position: 'absolute',
+    bottom: 0,
+    right: -8,
+    backgroundColor: '#ff6b6b',
+    borderRadius: 20,
+    width: 32,
+    height: 32,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  overlayWarningIcon: {
+    fontSize: 18,
+  },
+  overlayTitle: {
+    fontSize: 22,
+    fontWeight: 'bold',
+    color: '#5b9bd5',
+    marginBottom: 8,
+  },
+  overlayMessage: {
+    fontSize: 15,
+    color: '#666',
+    textAlign: 'center',
+    lineHeight: 22,
+  },
+  overlayNavButton: {
+    backgroundColor: 'white',
+    borderRadius: 12,
+    borderWidth: 2,
+    borderColor: '#5b9bd5',
+    paddingVertical: 14,
+    paddingHorizontal: 20,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 8,
+  },
+  overlayNavIcon: {
+    fontSize: 20,
+    marginRight: 8,
+  },
+  overlayNavText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#5b9bd5',
+    flex: 1,
+  },
+  overlayNavArrow: {
+    fontSize: 16,
+    color: '#5b9bd5',
+    marginLeft: 8,
+  },
+  overlayCloseButton: {
+    position: 'absolute',
+    top: 12,
+    right: 12,
+    width: 28,
+    height: 28,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  overlayCloseText: {
+    fontSize: 22,
+    color: '#999',
+    fontWeight: '300',
   },
 });
 
