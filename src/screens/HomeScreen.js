@@ -192,7 +192,19 @@ const HomeScreen = ({ navigation }) => {
 
   const navigateToQuests = (questData = null) => {
     if (questData) {
-      navigation.navigate('Quest', { selectedQuest: questData });
+      // 직렬화 가능한 데이터만 전달
+      const serializedQuest = {
+        name: questData.name,
+        category: questData.category,
+        distanceKm: questData.distanceKm,
+        rewardPoint: questData.rewardPoint,
+        address: questData.address,
+        overview: questData.overview,
+        questId: questData.questId,
+        latitude: questData.latitude,
+        longitude: questData.longitude,
+      };
+      navigation.navigate('Quest', { selectedQuest: serializedQuest });
     } else {
       navigation.navigate('Quest');
     }
@@ -211,7 +223,8 @@ const HomeScreen = ({ navigation }) => {
   };
 
   const handleQuestMarkerPress = (quest) => {
-    setSelectedPlace({
+    // 직렬화 가능한 데이터만 추출
+    const placeData = {
       name: quest.title || quest.name,
       category: quest.category || 'Quest',
       distanceKm: quest.distance_km || 0,
@@ -221,7 +234,8 @@ const HomeScreen = ({ navigation }) => {
       questId: quest.quest_id || quest.id,
       latitude: quest.latitude || quest.lat,
       longitude: quest.longitude || quest.lon,
-    });
+    };
+    setSelectedPlace(placeData);
     setPlaceModalVisible(true);
   };
 

@@ -72,12 +72,14 @@ const QuestList = ({ onQuestSelected }) => {
           </View>
 
           <View style={styles.questFooter}>
-            <Text style={styles.rewardText}>🎁 {quest.reward_point} points</Text>
-            <View style={styles.locationBadge}>
-              <Text style={styles.locationText}>
-                📌 {quest.lat.toFixed(4)}, {quest.lon.toFixed(4)}
-              </Text>
-            </View>
+            <Text style={styles.rewardText}>🎁 {quest.reward_point || 0} points</Text>
+            {(quest.lat || quest.latitude) && (quest.lon || quest.longitude) && (
+              <View style={styles.locationBadge}>
+                <Text style={styles.locationText}>
+                  📌 {(quest.lat || quest.latitude).toFixed(4)}, {(quest.lon || quest.longitude).toFixed(4)}
+                </Text>
+              </View>
+            )}
           </View>
         </TouchableOpacity>
       ))}
