@@ -1,33 +1,20 @@
-/**
- * FastAPI backend API client
- */
-
 import axios from 'axios';
 import { Platform } from 'react-native';
-import Constants from 'expo-constants';
-import { isExpoGo } from '../utils/audio';
 
-// 🚀 API URL 감지
 const getApiUrl = () => {
-  // 1. .env에서 API_URL 사용 (로컬 또는 Render 서버)
-  const API_URL = Constants.expoConfig?.extra?.API_URL;
+  const API_URL = process.env.API_URL;
 
   if (API_URL) {
     const url = API_URL.trim();
-    // http:// 또는 https://가 없으면 자동 추가
     if (!url.startsWith('http://') && !url.startsWith('https://')) {
       return `http://${url}`;
     }
     return url;
   }
 
-  // 2. 폴백: 플랫폼별 localhost 자동 감지
   const localhost = Platform.select({
-    // Android 에뮬레이터
     android: '10.0.2.2',
-    // iOS 시뮬레이터 또는 Expo Go (실제 기기)
-    ios: Constants.expoConfig?.hostUri?.split(':')[0] || 'localhost',
-    // 기본값
+    ios: 'localhost',
     default: 'localhost',
   });
 
@@ -36,17 +23,11 @@ const getApiUrl = () => {
 
 const API_BASE_URL = getApiUrl();
 
-// WebSocket URL 생성 (http -> ws, https -> wss)
 const getWebSocketUrl = () => {
   return API_BASE_URL.replace('http://', 'ws://').replace('https://', 'wss://');
 };
 
 const WS_BASE_URL = getWebSocketUrl();
-
-// 디버깅용 - 현재 사용 중인 API URL 출력
-console.log('📡 API URL:', API_BASE_URL);
-console.log('🔌 WebSocket URL:', WS_BASE_URL);
-console.log('📱 App Mode:', isExpoGo() ? 'Expo Go' : 'Standalone');
 
 const api = axios.create({
   baseURL: API_BASE_URL,
@@ -58,15 +39,8 @@ const api = axios.create({
 
 // ===== Docent APIs =====
 
-/**
- * Get AI docent message about a landmark
- * Always use URL (Supabase Storage) for better audio quality
- */
-export const getDocentMessage = async (userId, landmark, userMessage = null, language = 'ko', enableTts = true) => {
+export const docentChat = async (userId, landmark, userMessage = null, language = 'ko', preferUrl = false, enableTts = true) => {
   try {
-    // Always use URL for stable audio playback
-    const preferUrl = true;
-
     const response = await api.post('/docent/chat', {
       user_id: userId,
       landmark,
@@ -77,15 +51,12 @@ export const getDocentMessage = async (userId, landmark, userMessage = null, lan
     });
     return response.data;
   } catch (error) {
-    console.error('Error getting docent message:', error);
+    console.error('Error in docent chat:', error);
     throw error;
   }
 };
 
-/**
- * Get quiz about a landmark
- */
-export const getQuiz = async (landmark, language = 'ko') => {
+export const getDocentQuiz = async (landmark, language = 'ko') => {
   try {
     const response = await api.post('/docent/quiz', null, {
       params: { landmark, language },
@@ -97,14 +68,8 @@ export const getQuiz = async (landmark, language = 'ko') => {
   }
 };
 
-/**
- * Convert text to speech
- * Automatically detects Expo Go and sets prefer_url accordingly
- */
-export const textToSpeech = async (text, languageCode = 'ko-KR') => {
+export const textToSpeech = async (text, languageCode = 'ko-KR', preferUrl = false) => {
   try {
-    const preferUrl = isExpoGo();
-
     const response = await api.post('/docent/tts', {
       text,
       language_code: languageCode,
@@ -112,20 +77,17 @@ export const textToSpeech = async (text, languageCode = 'ko-KR') => {
     });
     return response.data;
   } catch (error) {
-    console.error('Error converting text to speech:', error);
+    console.error('Error in TTS:', error);
     throw error;
   }
 };
 
-/**
- * Get chat history
- */
-export const getChatHistory = async (userId, limit = 10) => {
+export const getDocentHistory = async (userId, limit = 10) => {
   try {
     const response = await api.get(`/docent/history/${userId}`, {
       params: { limit },
     });
-    return response.data;
+    return response.data.history;
   } catch (error) {
     console.error('Error getting chat history:', error);
     throw error;
@@ -134,9 +96,6 @@ export const getChatHistory = async (userId, limit = 10) => {
 
 // ===== Quest APIs =====
 
-/**
- * Get all quests
- */
 export const getAllQuests = async () => {
   try {
     const response = await api.get('/quest/list');
@@ -147,9 +106,6 @@ export const getAllQuests = async () => {
   }
 };
 
-/**
- * Get nearby quests
- */
 export const getNearbyQuests = async (lat, lon, radiusKm = 1.0) => {
   try {
     const response = await api.post('/quest/nearby', {
@@ -164,9 +120,6 @@ export const getNearbyQuests = async (lat, lon, radiusKm = 1.0) => {
   }
 };
 
-/**
- * Update quest progress
- */
 export const updateQuestProgress = async (userId, questId, status) => {
   try {
     const response = await api.post('/quest/progress', {
@@ -181,9 +134,6 @@ export const updateQuestProgress = async (userId, questId, status) => {
   }
 };
 
-/**
- * Get user's quests
- */
 export const getUserQuests = async (userId, status = null) => {
   try {
     const response = await api.get(`/quest/user/${userId}`, {
@@ -196,9 +146,6 @@ export const getUserQuests = async (userId, status = null) => {
   }
 };
 
-/**
- * Get quest details
- */
 export const getQuestDetail = async (questId) => {
   try {
     const response = await api.get(`/quest/${questId}`);
@@ -209,11 +156,6 @@ export const getQuestDetail = async (questId) => {
   }
 };
 
-// ===== Reward APIs =====
-
-/**
- * Get user points
- */
 export const getUserPoints = async (userId) => {
   try {
     const response = await api.get(`/reward/points/${userId}`);
@@ -224,9 +166,6 @@ export const getUserPoints = async (userId) => {
   }
 };
 
-/**
- * Add points to user
- */
 export const addPoints = async (userId, points, reason = 'Quest completion') => {
   try {
     const response = await api.post('/reward/points/add', {
@@ -241,9 +180,6 @@ export const addPoints = async (userId, points, reason = 'Quest completion') => 
   }
 };
 
-/**
- * Get available rewards
- */
 export const getAvailableRewards = async () => {
   try {
     const response = await api.get('/reward/list');
@@ -254,9 +190,6 @@ export const getAvailableRewards = async () => {
   }
 };
 
-/**
- * Claim a reward
- */
 export const claimReward = async (userId, rewardId) => {
   try {
     const response = await api.post('/reward/claim', {
@@ -270,9 +203,6 @@ export const claimReward = async (userId, rewardId) => {
   }
 };
 
-/**
- * Get claimed rewards
- */
 export const getClaimedRewards = async (userId) => {
   try {
     const response = await api.get(`/reward/claimed/${userId}`);
@@ -283,9 +213,6 @@ export const getClaimedRewards = async (userId) => {
   }
 };
 
-/**
- * Use a reward
- */
 export const useReward = async (rewardId, userId) => {
   try {
     const response = await api.post(`/reward/use/${rewardId}`, null, {
@@ -298,20 +225,200 @@ export const useReward = async (rewardId, userId) => {
   }
 };
 
-// ===== WebSocket APIs (Standalone apps only) =====
+// ===== VLM APIs =====
 
-/**
- * Get AI docent message via WebSocket with TTS streaming
- * Only for standalone apps (not Expo Go)
- * @param {string} userId - User ID
- * @param {string} landmark - Landmark name
- * @param {string} userMessage - Optional user message
- * @param {string} language - Language code
- * @param {function} onTextReceived - Callback for text message
- * @param {function} onAudioChunk - Callback for audio chunks
- * @param {boolean} enableTts - Whether to generate TTS (default: true)
- * @returns {Promise<object>} Response with message
- */
+export const analyzeImage = async (
+  userId,
+  imageBase64,
+  latitude = null,
+  longitude = null,
+  language = 'ko',
+  preferUrl = true,
+  enableTts = true,
+  useCache = true
+) => {
+  try {
+    const response = await api.post('/vlm/analyze', {
+      user_id: userId,
+      image: imageBase64,
+      latitude,
+      longitude,
+      language,
+      prefer_url: preferUrl,
+      enable_tts: enableTts,
+      use_cache: useCache,
+    });
+    return response.data;
+  } catch (error) {
+    console.error('Error analyzing image:', error);
+    throw error;
+  }
+};
+
+export const analyzeImageMultipart = async (formData) => {
+  try {
+    const response = await api.post('/vlm/analyze-multipart', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    });
+    return response.data;
+  } catch (error) {
+    console.error('Error analyzing image (multipart):', error);
+    throw error;
+  }
+};
+
+export const findSimilarImages = async (imageBase64, limit = 3, threshold = 0.7) => {
+  try {
+    const response = await api.post('/vlm/similar', {
+      image: imageBase64,
+      limit,
+      threshold,
+    });
+    return response.data;
+  } catch (error) {
+    console.error('Error finding similar images:', error);
+    throw error;
+  }
+};
+
+export const embedImage = async (formData) => {
+  try {
+    const response = await api.post('/vlm/embed', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    });
+    return response.data;
+  } catch (error) {
+    console.error('Error embedding image:', error);
+    throw error;
+  }
+};
+
+export const getNearbyPlaces = async (latitude, longitude, radiusKm = 1.0, limit = 10) => {
+  try {
+    const response = await api.get('/vlm/places/nearby', {
+      params: {
+        latitude,
+        longitude,
+        radius_km: radiusKm,
+        limit,
+      },
+    });
+    return response.data;
+  } catch (error) {
+    console.error('Error getting nearby places:', error);
+    throw error;
+  }
+};
+
+export const getVLMHealth = async () => {
+  try {
+    const response = await api.get('/vlm/health');
+    return response.data;
+  } catch (error) {
+    console.error('Error checking VLM health:', error);
+    throw error;
+  }
+};
+
+// ===== Recommend APIs =====
+
+export const getSimilarPlaces = async (
+  userId,
+  imageBase64,
+  latitude = null,
+  longitude = null,
+  radiusKm = 5.0,
+  limit = 5,
+  questOnly = true
+) => {
+  try {
+    const response = await api.post('/recommend/similar-places', {
+      user_id: userId,
+      image: imageBase64,
+      latitude,
+      longitude,
+      radius_km: radiusKm,
+      limit,
+      quest_only: questOnly,
+    });
+    return response.data;
+  } catch (error) {
+    console.error('Error getting similar places:', error);
+    throw error;
+  }
+};
+
+export const getNearbyQuestsRecommend = async (latitude, longitude, radiusKm = 5.0, limit = 10) => {
+  try {
+    const response = await api.get('/recommend/nearby-quests', {
+      params: {
+        latitude,
+        longitude,
+        radius_km: radiusKm,
+        limit,
+      },
+    });
+    return response.data;
+  } catch (error) {
+    console.error('Error getting nearby quests (recommend):', error);
+    throw error;
+  }
+};
+
+export const getQuestsByCategory = async (category, limit = 20) => {
+  try {
+    const response = await api.get(`/recommend/quests/category/${category}`, {
+      params: { limit },
+    });
+    return response.data;
+  } catch (error) {
+    console.error('Error getting quests by category:', error);
+    throw error;
+  }
+};
+
+export const getQuestDetailRecommend = async (questId) => {
+  try {
+    const response = await api.get(`/recommend/quests/${questId}`);
+    return response.data;
+  } catch (error) {
+    console.error('Error getting quest detail (recommend):', error);
+    throw error;
+  }
+};
+
+export const submitQuizAnswer = async (questId, userId, quizId, answer) => {
+  try {
+    const response = await api.post(`/recommend/quests/${questId}/submit`, null, {
+      params: {
+        user_id: userId,
+        quiz_id: quizId,
+        answer,
+      },
+    });
+    return response.data;
+  } catch (error) {
+    console.error('Error submitting quiz answer:', error);
+    throw error;
+  }
+};
+
+export const getRecommendStats = async () => {
+  try {
+    const response = await api.get('/recommend/stats');
+    return response.data;
+  } catch (error) {
+    console.error('Error getting recommend stats:', error);
+    throw error;
+  }
+};
+
+// ===== WebSocket APIs =====
+
 export const getDocentMessageWS = async (
   userId,
   landmark,
@@ -323,18 +430,15 @@ export const getDocentMessageWS = async (
 ) => {
   return new Promise((resolve, reject) => {
     const wsUrl = `${WS_BASE_URL}/docent/ws/chat`;
-    console.log('🔌 Connecting to:', wsUrl);
 
     const ws = new WebSocket(wsUrl);
 
-    // Set binary type to arraybuffer for React Native compatibility
     ws.binaryType = 'arraybuffer';
 
     const audioChunks = [];
     let textResponse = null;
 
     ws.onopen = () => {
-      console.log('✅ WebSocket connected');
       ws.send(
         JSON.stringify({
           user_id: userId,
@@ -351,7 +455,6 @@ export const getDocentMessageWS = async (
         const message = event.data;
 
         if (message === 'DONE') {
-          console.log('✅ WebSocket chat complete');
           ws.close();
           resolve({
             message: textResponse?.message,
@@ -363,57 +466,44 @@ export const getDocentMessageWS = async (
             const data = JSON.parse(message);
             if (data.type === 'text') {
               textResponse = data;
-              console.log('📨 Text received:', data.message.substring(0, 50) + '...');
               if (onTextReceived) onTextReceived(data);
             } else if (data.error) {
-              console.error('❌ Server error:', data.error);
+              console.error('Server error:', data.error);
               reject(new Error(data.error));
               ws.close();
             }
           } catch (e) {
-            console.log('📨 Server message:', message);
+            // Ignore non-JSON messages
           }
         }
       } else {
-        // Binary audio chunk
         audioChunks.push(event.data);
         if (onAudioChunk) onAudioChunk(event.data);
       }
     };
 
     ws.onerror = (error) => {
-      console.error('❌ WebSocket error:', error);
+      console.error('WebSocket error:', error);
       reject(error);
     };
 
     ws.onclose = () => {
-      console.log('🔌 WebSocket closed');
+      // WebSocket closed
     };
   });
 };
 
-/**
- * Convert text to speech via WebSocket streaming
- * Only for standalone apps (not Expo Go)
- * @param {string} text - Text to convert
- * @param {string} languageCode - Language code
- * @param {function} onAudioChunk - Optional callback for each chunk
- * @returns {Promise<Array>} Array of audio chunks (Blobs)
- */
 export const textToSpeechWS = async (text, languageCode = 'ko-KR', onAudioChunk = null) => {
   return new Promise((resolve, reject) => {
     const wsUrl = `${WS_BASE_URL}/docent/ws/tts`;
-    console.log('🔌 Connecting to:', wsUrl);
 
     const ws = new WebSocket(wsUrl);
 
-    // Set binary type to arraybuffer for React Native compatibility
     ws.binaryType = 'arraybuffer';
 
     const audioChunks = [];
 
     ws.onopen = () => {
-      console.log('✅ WebSocket connected');
       ws.send(JSON.stringify({ text, language_code: languageCode }));
     };
 
@@ -422,35 +512,33 @@ export const textToSpeechWS = async (text, languageCode = 'ko-KR', onAudioChunk 
         const message = event.data;
 
         if (message === 'DONE') {
-          console.log('✅ WebSocket TTS complete');
           ws.close();
           resolve(audioChunks);
         } else {
           try {
             const data = JSON.parse(message);
             if (data.error) {
-              console.error('❌ Server error:', data.error);
+              console.error('Server error:', data.error);
               reject(new Error(data.error));
               ws.close();
             }
           } catch (e) {
-            console.log('📨 Server message:', message);
+            // Ignore non-JSON messages
           }
         }
       } else {
-        // Binary audio chunk
         audioChunks.push(event.data);
         if (onAudioChunk) onAudioChunk(event.data);
       }
     };
 
     ws.onerror = (error) => {
-      console.error('❌ WebSocket error:', error);
+      console.error('WebSocket error:', error);
       reject(error);
     };
 
     ws.onclose = () => {
-      console.log('🔌 WebSocket closed');
+      // WebSocket closed
     };
   });
 };

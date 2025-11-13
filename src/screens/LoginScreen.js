@@ -1,8 +1,3 @@
-/**
- * Login Screen
- * User authentication (Sign In / Sign Up)
- */
-
 import React, { useState } from 'react';
 import {
   View,
@@ -17,6 +12,8 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { signIn, signUp } from '../utils/supabase';
+import * as Colors from '../constants/colors';
+import { SPACING, RADIUS, FONT_SIZE, FONT_WEIGHT } from '../constants/spacing';
 
 const LoginScreen = ({ navigation }) => {
   const [email, setEmail] = useState('');
@@ -38,8 +35,6 @@ const LoginScreen = ({ navigation }) => {
       if (error) {
         Alert.alert('로그인 실패', error.message);
       } else {
-        console.log('로그인 성공:', data);
-        // 세션이 저장되면 자동으로 Home으로 이동
         navigation.replace('Home');
       }
     } catch (err) {
@@ -86,7 +81,6 @@ const LoginScreen = ({ navigation }) => {
   };
 
   const handleGuestLogin = () => {
-    // 게스트로 임시 진입 (개발/테스트용)
     Alert.alert(
       '게스트 모드',
       '게스트로 앱을 둘러보시겠습니까?\n(일부 기능이 제한됩니다)',
@@ -107,7 +101,6 @@ const LoginScreen = ({ navigation }) => {
         style={styles.keyboardView}
       >
         <View style={styles.content}>
-          {/* Header */}
           <View style={styles.header}>
             <Text style={styles.logo}>🗺️</Text>
             <Text style={styles.title}>Quest of Seoul</Text>
@@ -116,7 +109,6 @@ const LoginScreen = ({ navigation }) => {
             </Text>
           </View>
 
-          {/* Form */}
           <View style={styles.form}>
             {isSignUp && (
               <TextInput
@@ -147,7 +139,6 @@ const LoginScreen = ({ navigation }) => {
               autoCapitalize="none"
             />
 
-            {/* Submit Button */}
             <TouchableOpacity
               style={[styles.button, styles.primaryButton]}
               onPress={isSignUp ? handleSignUp : handleSignIn}
@@ -162,7 +153,6 @@ const LoginScreen = ({ navigation }) => {
               )}
             </TouchableOpacity>
 
-            {/* Toggle Sign In / Sign Up */}
             <TouchableOpacity
               style={styles.toggleButton}
               onPress={() => setIsSignUp(!isSignUp)}
@@ -174,7 +164,6 @@ const LoginScreen = ({ navigation }) => {
               </Text>
             </TouchableOpacity>
 
-            {/* Guest Login */}
             <TouchableOpacity
               style={[styles.button, styles.guestButton]}
               onPress={handleGuestLogin}
@@ -191,14 +180,14 @@ const LoginScreen = ({ navigation }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f9fafb',
+    backgroundColor: Colors.GRAY_50,
   },
   keyboardView: {
     flex: 1,
   },
   content: {
     flex: 1,
-    padding: 20,
+    padding: SPACING.xl,
     justifyContent: 'center',
   },
   header: {
@@ -207,63 +196,63 @@ const styles = StyleSheet.create({
   },
   logo: {
     fontSize: 80,
-    marginBottom: 16,
+    marginBottom: SPACING.lg,
   },
   title: {
-    fontSize: 32,
-    fontWeight: 'bold',
-    color: '#1f2937',
-    marginBottom: 8,
+    fontSize: FONT_SIZE.xxxl,
+    fontWeight: FONT_WEIGHT.bold,
+    color: Colors.TEXT_PRIMARY,
+    marginBottom: SPACING.sm,
   },
   subtitle: {
-    fontSize: 16,
-    color: '#6b7280',
+    fontSize: FONT_SIZE.lg,
+    color: Colors.TEXT_MUTED,
   },
   form: {
     width: '100%',
   },
   input: {
-    backgroundColor: '#ffffff',
+    backgroundColor: Colors.BACKGROUND_WHITE,
     borderWidth: 1,
-    borderColor: '#e5e7eb',
-    borderRadius: 12,
-    padding: 16,
-    fontSize: 16,
-    marginBottom: 12,
+    borderColor: Colors.BORDER_LIGHT,
+    borderRadius: RADIUS.lg,
+    padding: SPACING.lg,
+    fontSize: FONT_SIZE.lg,
+    marginBottom: SPACING.md,
   },
   button: {
-    borderRadius: 12,
-    paddingVertical: 16,
+    borderRadius: RADIUS.lg,
+    paddingVertical: SPACING.lg,
     alignItems: 'center',
-    marginTop: 8,
+    marginTop: SPACING.sm,
   },
   primaryButton: {
-    backgroundColor: '#6366f1',
+    backgroundColor: Colors.SECONDARY,
   },
   buttonText: {
-    color: '#ffffff',
-    fontSize: 16,
-    fontWeight: '600',
+    color: Colors.TEXT_WHITE,
+    fontSize: FONT_SIZE.lg,
+    fontWeight: FONT_WEIGHT.semibold,
   },
   toggleButton: {
     alignItems: 'center',
-    marginTop: 16,
-    marginBottom: 24,
+    marginTop: SPACING.lg,
+    marginBottom: SPACING.xxl,
   },
   toggleText: {
-    color: '#6366f1',
-    fontSize: 14,
-    fontWeight: '500',
+    color: Colors.SECONDARY,
+    fontSize: FONT_SIZE.sm,
+    fontWeight: FONT_WEIGHT.medium,
   },
   guestButton: {
-    backgroundColor: '#f3f4f6',
+    backgroundColor: Colors.GRAY_100,
     borderWidth: 1,
-    borderColor: '#d1d5db',
+    borderColor: Colors.BORDER_MEDIUM,
   },
   guestButtonText: {
-    color: '#6b7280',
-    fontSize: 16,
-    fontWeight: '600',
+    color: Colors.TEXT_MUTED,
+    fontSize: FONT_SIZE.lg,
+    fontWeight: FONT_WEIGHT.semibold,
   },
 });
 

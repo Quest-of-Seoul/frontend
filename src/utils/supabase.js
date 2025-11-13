@@ -1,16 +1,9 @@
-/**
- * Supabase client configuration
- */
-
 import { createClient } from '@supabase/supabase-js';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import Constants from 'expo-constants';
 
-// Supabase configuration from environment variables
-const SUPABASE_URL = Constants.expoConfig?.extra?.SUPABASE_URL;
-const SUPABASE_ANON_KEY = Constants.expoConfig?.extra?.SUPABASE_ANON_KEY;
+const SUPABASE_URL = process.env.SUPABASE_URL;
+const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY;
 
-// Create Supabase client
 export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
   auth: {
     storage: AsyncStorage,
@@ -20,11 +13,12 @@ export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
   },
 });
 
-/**
- * Sign up a new user
- */
 export const signUp = async (email, password, nickname) => {
   try {
+    if (!supabase) {
+      throw new Error('Supabase is not configured');
+    }
+
     const { data, error } = await supabase.auth.signUp({
       email,
       password,
@@ -42,11 +36,12 @@ export const signUp = async (email, password, nickname) => {
   }
 };
 
-/**
- * Sign in existing user
- */
 export const signIn = async (email, password) => {
   try {
+    if (!supabase) {
+      throw new Error('Supabase is not configured');
+    }
+
     const { data, error } = await supabase.auth.signInWithPassword({
       email,
       password,
@@ -59,11 +54,12 @@ export const signIn = async (email, password) => {
   }
 };
 
-/**
- * Sign out current user
- */
 export const signOut = async () => {
   try {
+    if (!supabase) {
+      return { error: null };
+    }
+
     const { error } = await supabase.auth.signOut();
     if (error) throw error;
     return { error: null };
@@ -72,11 +68,12 @@ export const signOut = async () => {
   }
 };
 
-/**
- * Get current session
- */
 export const getSession = async () => {
   try {
+    if (!supabase) {
+      return null;
+    }
+
     const { data, error } = await supabase.auth.getSession();
     if (error) throw error;
     return data.session;
@@ -86,11 +83,12 @@ export const getSession = async () => {
   }
 };
 
-/**
- * Get current user
- */
 export const getCurrentUser = async () => {
   try {
+    if (!supabase) {
+      return null;
+    }
+
     const { data, error } = await supabase.auth.getUser();
     if (error) throw error;
     return data.user;

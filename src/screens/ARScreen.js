@@ -1,9 +1,4 @@
-/**
- * AR Screen - Expo Camera Version
- * Main AR experience with docent interaction
- */
-
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   StyleSheet,
@@ -11,12 +6,18 @@ import {
   Text,
   SafeAreaView,
   Alert,
+  Modal,
+  Image,
 } from 'react-native';
+import LinearGradient from 'react-native-linear-gradient';
 import ARSceneComponent from '../components/ARScene';
 import DocentDialog from '../components/DocentDialog';
 import { getCurrentUser } from '../utils/supabase';
-import { getDocentMessage, getDocentMessageWS, addPoints } from '../api/fastapi';
-import { playAudioFromBase64, playAudioFromURL, playAudioChunkStreaming, clearAudioQueue, configureAudioMode, isExpoGo } from '../utils/audio';
+import { getDocentMessageWS, addPoints } from '../api/fastapi';
+import { configureAudioMode } from '../utils/audio';
+import * as Colors from '../constants/colors';
+import { SPACING, RADIUS, FONT_SIZE, FONT_WEIGHT } from '../constants/spacing';
+import { shadows } from '../utils/theme';
 
 const ARScreen = ({ route, navigation }) => {
   const { quest } = route.params || {};
@@ -24,10 +25,11 @@ const ARScreen = ({ route, navigation }) => {
   const [docentMessage, setDocentMessage] = useState('');
   const [userId, setUserId] = useState(null);
   const [hasConversed, setHasConversed] = useState(false);
-  const [isMuted, setIsMuted] = useState(false); // TTS 음소거 상태 (전체 화면에서 유지)
+  const [isMuted, setIsMuted] = useState(false);
+  const [showCompletionModal, setShowCompletionModal] = useState(false);
+  const [earnedPoints, setEarnedPoints] = useState(0); // TTS 음소거 상태 (전체 화면에서 유지)
 
   useEffect(() => {
-    // Configure audio mode on mount
     configureAudioMode();
 
     loadUser();
@@ -50,59 +52,34 @@ const ARScreen = ({ route, navigation }) => {
       const user = await getCurrentUser();
       if (!user) return;
 
-      const useExpoGo = isExpoGo();
-
-      if (useExpoGo) {
-        // Expo Go: Use REST API with URL
-        console.log(`📡 Loading initial message via REST API (Expo Go) - Text only (no TTS for initial)`);
-
-        const response = await getDocentMessage(user.id, quest.name, null, 'ko', false);
-        setDocentMessage(response.message);
-        setShowDialog(true);
-        setHasConversed(true);
-
-        // Initial message: no audio playback (text only)
-        console.log('📝 Initial message loaded - text only (no TTS)');
-      } else {
-        // Standalone: Use WebSocket streaming
-        console.log(`🔌 Loading initial message via WebSocket - Text only (no TTS for initial)`);
-
-        const response = await getDocentMessageWS(
-          user.id,
-          quest.name,
-          null,
-          'ko',
-          // Text received callback
-          (data) => {
-            console.log('📨 Initial message received');
-            setDocentMessage(data.message);
-            setShowDialog(true);
-            setHasConversed(true);
-          },
-          // Audio chunk received callback - not used for initial message
-          null,
-          false  // enable_tts = false for initial message
-        );
-
-        console.log('✅ Initial message WebSocket streaming complete');
-      }
+      const response = await getDocentMessageWS(
+        user.id,
+        quest.name,
+        null,
+        'ko',
+        (data) => {
+          setDocentMessage(data.message);
+          setShowDialog(true);
+          setHasConversed(true);
+        },
+        null,
+        false
+      );
     } catch (error) {
-      console.error('Error loading initial message:', error);
+      console.error('초기 메시지 로딩 에러:', error);
     }
   };
 
   const handleCameraReady = () => {
-    console.log('Camera ready');
+    // Camera ready
   };
 
   const handleMessageReceived = (response) => {
     setDocentMessage(response.message);
     setHasConversed(true); // Mark that user has conversed with docent
-    // Audio is already handled in DocentDialog
   };
 
   const toggleDialog = () => {
-    // Check if quest exists
     if (!quest) {
       Alert.alert(
         '안내',
@@ -121,7 +98,6 @@ const ARScreen = ({ route, navigation }) => {
   };
 
   const handleExploreComplete = async () => {
-    // Check if quest exists
     if (!quest) {
       Alert.alert(
         '안내',
@@ -136,7 +112,6 @@ const ARScreen = ({ route, navigation }) => {
       return;
     }
 
-    // Check if user has conversed with docent first
     if (!hasConversed) {
       Alert.alert('안내', '도슨트와 대화를 먼저 진행해주세요');
       return;
@@ -148,24 +123,13 @@ const ARScreen = ({ route, navigation }) => {
     }
 
     try {
-      // Add points to user
-      const points = quest.reward_point || 100; // Use quest's reward_point or default 100
+      const points = quest.reward_point || 100;
       const result = await addPoints(userId, points, `${quest.name} 탐험 완료`);
 
-      console.log('✅ Points added successfully:', result);
-
-      Alert.alert(
-        '🎉 탐험 완료!',
-        `${quest.name} 탐험을 완료했습니다!\n${points} 포인트를 획득했습니다.`,
-        [
-          {
-            text: '확인',
-            onPress: () => navigation.goBack(),
-          },
-        ]
-      );
+      setEarnedPoints(points);
+      setShowCompletionModal(true);
     } catch (error) {
-      console.error('❌ Error completing quest:', error);
+      console.error('Error completing quest:', error);
       console.error('Error details:', error.response?.data || error.message);
       Alert.alert(
         '오류',
@@ -176,7 +140,6 @@ const ARScreen = ({ route, navigation }) => {
 
   return (
     <SafeAreaView style={styles.container}>
-      {/* AR Scene with Camera */}
       <View style={styles.arContainer}>
         <ARSceneComponent
           onCameraReady={handleCameraReady}
@@ -185,7 +148,6 @@ const ARScreen = ({ route, navigation }) => {
         />
       </View>
 
-      {/* Control Buttons */}
       <View style={styles.controlsContainer}>
         <TouchableOpacity style={styles.controlButton} onPress={toggleDialog}>
           <Text style={styles.controlButtonText}>
@@ -201,7 +163,6 @@ const ARScreen = ({ route, navigation }) => {
         </TouchableOpacity>
       </View>
 
-      {/* Docent Dialog */}
       {showDialog && userId && quest && (
         <View style={styles.dialogContainer}>
           <DocentDialog
@@ -213,6 +174,55 @@ const ARScreen = ({ route, navigation }) => {
           />
         </View>
       )}
+
+      <Modal
+        visible={showCompletionModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => {
+          setShowCompletionModal(false);
+          navigation.goBack();
+        }}
+      >
+        <LinearGradient
+          colors={[Colors.GRADIENT_START, Colors.GRADIENT_MIDDLE, Colors.GRADIENT_END]}
+          style={styles.completionModal}
+        >
+          <View style={styles.completionContent}>
+            <Text style={styles.completionTitle}>🎉 Quest Completed!</Text>
+
+            <View style={styles.landmarkCard}>
+              <Image
+                source={require('../../assets/ai_docent.png')}
+                style={styles.landmarkImage}
+                resizeMode="cover"
+              />
+              <Text style={styles.landmarkName}>{quest?.title || quest?.name}</Text>
+            </View>
+
+            <View style={styles.pointsBadge}>
+              <Text style={styles.pointsText}>+{earnedPoints} P</Text>
+            </View>
+
+            <TouchableOpacity
+              style={styles.completionButton}
+              onPress={() => {
+                setShowCompletionModal(false);
+                navigation.goBack();
+              }}
+              activeOpacity={0.8}
+            >
+              <Text style={styles.completionButtonText}>완료</Text>
+            </TouchableOpacity>
+          </View>
+
+          <Image
+            source={require('../../assets/ai_docent.png')}
+            style={styles.tigerCharacter}
+            resizeMode="contain"
+          />
+        </LinearGradient>
+      </Modal>
     </SafeAreaView>
   );
 };
@@ -220,7 +230,7 @@ const ARScreen = ({ route, navigation }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#000000',
+    backgroundColor: Colors.GRAY_900,
   },
   arContainer: {
     flex: 1,
@@ -228,24 +238,25 @@ const styles = StyleSheet.create({
   controlsContainer: {
     position: 'absolute',
     top: 60,
-    left: 20,
-    right: 20,
+    left: SPACING.xl,
+    right: SPACING.xl,
     flexDirection: 'row',
     justifyContent: 'space-between',
   },
   controlButton: {
-    backgroundColor: 'rgba(99, 102, 241, 0.9)',
-    paddingHorizontal: 20,
-    paddingVertical: 12,
-    borderRadius: 20,
+    backgroundColor: Colors.SECONDARY + 'E6',
+    paddingHorizontal: SPACING.xl,
+    paddingVertical: SPACING.md,
+    borderRadius: RADIUS.xl,
+    ...shadows.medium,
   },
   backButton: {
-    backgroundColor: 'rgba(107, 114, 128, 0.9)',
+    backgroundColor: Colors.GRAY_600 + 'E6',
   },
   controlButtonText: {
-    color: '#ffffff',
-    fontSize: 16,
-    fontWeight: '600',
+    color: Colors.TEXT_WHITE,
+    fontSize: FONT_SIZE.lg,
+    fontWeight: FONT_WEIGHT.semibold,
   },
   dialogContainer: {
     position: 'absolute',
@@ -253,14 +264,80 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     height: '60%',
-    backgroundColor: '#ffffff',
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: -4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 10,
+    backgroundColor: Colors.BACKGROUND_WHITE,
+    borderTopLeftRadius: RADIUS.xl,
+    borderTopRightRadius: RADIUS.xl,
+    ...shadows.large,
+  },
+  completionModal: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: SPACING.xxxl + 8,
+  },
+  completionContent: {
+    alignItems: 'center',
+    width: '100%',
+  },
+  completionTitle: {
+    fontSize: 48,
+    fontWeight: FONT_WEIGHT.bold,
+    color: Colors.PRIMARY,
+    marginBottom: SPACING.xxxl + 8,
+    textAlign: 'center',
+  },
+  landmarkCard: {
+    backgroundColor: Colors.BACKGROUND_WHITE,
+    borderRadius: RADIUS.xl,
+    padding: SPACING.xl,
+    alignItems: 'center',
+    width: '80%',
+    ...shadows.large,
+    marginBottom: SPACING.xxxl - 2,
+  },
+  landmarkImage: {
+    width: 200,
+    height: 200,
+    borderRadius: RADIUS.lg,
+    marginBottom: SPACING.lg,
+  },
+  landmarkName: {
+    fontSize: FONT_SIZE.xl,
+    fontWeight: FONT_WEIGHT.semibold,
+    color: Colors.TEXT_PRIMARY,
+    textAlign: 'center',
+  },
+  pointsBadge: {
+    backgroundColor: Colors.PRIMARY,
+    paddingHorizontal: SPACING.xxxl - 2,
+    paddingVertical: SPACING.lg,
+    borderRadius: RADIUS.xxxl,
+    marginBottom: SPACING.xxxl + 8,
+    ...shadows.medium,
+  },
+  pointsText: {
+    fontSize: FONT_SIZE.heading,
+    fontWeight: FONT_WEIGHT.bold,
+    color: Colors.TEXT_WHITE,
+  },
+  completionButton: {
+    backgroundColor: Colors.BACKGROUND_WHITE,
+    paddingHorizontal: SPACING.xxxl * 2,
+    paddingVertical: SPACING.lg,
+    borderRadius: RADIUS.xxxl,
+    ...shadows.medium,
+  },
+  completionButtonText: {
+    fontSize: FONT_SIZE.xl,
+    fontWeight: FONT_WEIGHT.bold,
+    color: Colors.TEXT_PRIMARY,
+  },
+  tigerCharacter: {
+    position: 'absolute',
+    bottom: 50,
+    right: SPACING.xl,
+    width: 150,
+    height: 150,
   },
 });
 

@@ -1,19 +1,16 @@
-/**
- * AR Scene Component - Expo Camera Version
- * Displays camera view with AR overlay
- */
-
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, Image, Animated, TouchableOpacity } from 'react-native';
-import { CameraView, useCameraPermissions } from 'expo-camera';
+import { Camera, useCameraDevice, useCameraPermission } from 'react-native-vision-camera';
+import * as Colors from '../constants/colors';
+import { SPACING, RADIUS, FONT_SIZE, FONT_WEIGHT } from '../constants/spacing';
 
 const ARSceneComponent = ({ onCameraReady, docentMessage, characterImage, onExploreComplete }) => {
-  const [permission, requestPermission] = useCameraPermissions();
+  const device = useCameraDevice('back');
+  const { hasPermission, requestPermission } = useCameraPermission();
   const [fadeAnim] = useState(new Animated.Value(0));
 
   useEffect(() => {
     if (docentMessage) {
-      // Fade in animation
       Animated.timing(fadeAnim, {
         toValue: 1,
         duration: 1000,
@@ -23,16 +20,22 @@ const ARSceneComponent = ({ onCameraReady, docentMessage, characterImage, onExpl
   }, [docentMessage]);
 
   useEffect(() => {
-    if (!permission) {
+    if (!hasPermission) {
       requestPermission();
     }
-  }, [permission]);
+  }, [hasPermission]);
 
-  if (!permission) {
+  useEffect(() => {
+    if (device && onCameraReady) {
+      onCameraReady();
+    }
+  }, [device]);
+
+  if (!device) {
     return <View style={styles.container} />;
   }
 
-  if (!permission.granted) {
+  if (!hasPermission) {
     return (
       <View style={styles.container}>
         <Text style={styles.permissionText}>
@@ -44,29 +47,24 @@ const ARSceneComponent = ({ onCameraReady, docentMessage, characterImage, onExpl
 
   return (
     <View style={styles.container}>
-      {/* Camera View */}
-      <CameraView
+      <Camera
         style={styles.camera}
-        facing="back"
-        onCameraReady={onCameraReady}
+        device={device}
+        isActive={true}
       >
-        {/* AR Overlay */}
         <View style={styles.overlay}>
-          {/* AI Docent Character */}
           <Animated.View
             style={[
               styles.characterContainer,
               { opacity: fadeAnim },
             ]}
           >
-            {/* AI Docent Character */}
             <Image
               source={require('../../assets/ai_docent.png')}
               style={styles.characterImage}
               resizeMode="contain"
             />
 
-            {/* Docent Message */}
             {docentMessage && (
               <View style={styles.messageContainer}>
                 <Text style={styles.messageText}>
@@ -76,7 +74,6 @@ const ARSceneComponent = ({ onCameraReady, docentMessage, characterImage, onExpl
             )}
           </Animated.View>
 
-          {/* AR Instruction / Complete Button */}
           <TouchableOpacity
             style={styles.instructionContainer}
             onPress={onExploreComplete}
@@ -87,7 +84,7 @@ const ARSceneComponent = ({ onCameraReady, docentMessage, characterImage, onExpl
             </Text>
           </TouchableOpacity>
         </View>
-      </CameraView>
+      </Camera>
     </View>
   );
 };
@@ -95,7 +92,7 @@ const ARSceneComponent = ({ onCameraReady, docentMessage, characterImage, onExpl
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#000',
+    backgroundColor: Colors.GRAY_900,
   },
   camera: {
     flex: 1,
@@ -104,7 +101,7 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'space-between',
     alignItems: 'center',
-    padding: 20,
+    padding: SPACING.xl,
   },
   characterContainer: {
     flex: 1,
@@ -117,33 +114,33 @@ const styles = StyleSheet.create({
     height: 200,
   },
   messageContainer: {
-    backgroundColor: 'rgba(0, 0, 0, 0.8)',
-    borderRadius: 16,
-    padding: 16,
-    marginTop: 20,
+    backgroundColor: Colors.GRAY_900 + 'CC',
+    borderRadius: RADIUS.lg,
+    padding: SPACING.lg,
+    marginTop: SPACING.xl,
     maxWidth: '90%',
   },
   messageText: {
-    color: '#ffffff',
-    fontSize: 16,
+    color: Colors.TEXT_WHITE,
+    fontSize: FONT_SIZE.lg,
     textAlign: 'center',
     lineHeight: 24,
   },
   instructionContainer: {
-    backgroundColor: 'rgba(99, 102, 241, 0.9)',
-    paddingHorizontal: 20,
-    paddingVertical: 12,
-    borderRadius: 20,
-    marginBottom: 20,
+    backgroundColor: Colors.SECONDARY + 'E6',
+    paddingHorizontal: SPACING.xl,
+    paddingVertical: SPACING.md,
+    borderRadius: RADIUS.xl,
+    marginBottom: SPACING.xl,
   },
   instructionText: {
-    color: '#ffffff',
-    fontSize: 14,
-    fontWeight: '600',
+    color: Colors.TEXT_WHITE,
+    fontSize: FONT_SIZE.md,
+    fontWeight: FONT_WEIGHT.semibold,
   },
   permissionText: {
-    color: '#ffffff',
-    fontSize: 16,
+    color: Colors.TEXT_WHITE,
+    fontSize: FONT_SIZE.lg,
     textAlign: 'center',
   },
 });

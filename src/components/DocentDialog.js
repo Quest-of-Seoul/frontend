@@ -1,8 +1,3 @@
-/**
- * Docent Dialog Component
- * Displays AI docent conversation UI
- */
-
 import React, { useState } from 'react';
 import {
   View,
@@ -13,8 +8,10 @@ import {
   ActivityIndicator,
   ScrollView,
 } from 'react-native';
-import { getDocentMessage, getDocentMessageWS } from '../api/fastapi';
-import { playAudioFromURL, playAudioFromBase64, playAudioChunkStreaming, clearAudioQueue, isExpoGo } from '../utils/audio';
+import { getDocentMessageWS } from '../api/fastapi';
+import { playAudioChunkStreaming, clearAudioQueue } from '../utils/audio';
+import * as Colors from '../constants/colors';
+import { SPACING, RADIUS, FONT_SIZE, FONT_WEIGHT } from '../constants/spacing';
 
 const DocentDialog = ({ userId, landmark, onMessageReceived, isMuted, setIsMuted }) => {
   const [userInput, setUserInput] = useState('');
@@ -27,100 +24,39 @@ const DocentDialog = ({ userId, landmark, onMessageReceived, isMuted, setIsMuted
     const userMessage = messageText.trim();
     setLoading(true);
 
-    // Add user message to chat with unique ID
     const userMessageId = `user-${Date.now()}-${Math.random()}`;
     setMessages((prev) => [...prev, { type: 'user', text: userMessage, id: userMessageId }]);
 
     try {
-      const useExpoGo = isExpoGo();
+      if (!isMuted) {
+        clearAudioQueue();
+      }
 
-      if (useExpoGo) {
-        // Expo Go: Use REST API with URL
-        console.log(`📡 Using REST API for complete TTS (Expo Go) - Muted: ${isMuted}`);
-
-        const response = await getDocentMessage(userId, landmark, userMessage, 'ko', !isMuted);
-
-        // Debug: Log response structure
-        console.log('📦 Server response:', {
-          has_audio_url: !!response.audio_url,
-          has_audio: !!response.audio,
-          audio_url: response.audio_url?.substring(0, 100),
-        });
-
-        // Add AI message to chat with unique ID
-        const aiMessageId = `ai-${Date.now()}-${Math.random()}`;
-        setMessages((prev) => [
-          ...prev,
-          { type: 'ai', text: response.message, id: aiMessageId },
-        ]);
-
-        // Play complete audio only if NOT muted
-        if (!isMuted) {
-          if (response.audio_url) {
-            // If server returns URL (Expo Go mode)
-            console.log('🎵 Playing from URL:', response.audio_url);
-            await playAudioFromURL(response.audio_url);
-          } else if (response.audio) {
-            // Fallback to base64
-            console.log('🎵 Playing complete TTS from base64');
-            await playAudioFromBase64(response.audio);
-          } else {
-            console.warn('⚠️  No audio received from server');
+      const response = await getDocentMessageWS(
+        userId,
+        landmark,
+        userMessage,
+        'ko',
+        (data) => {
+          const aiMessageId = `ai-${Date.now()}-${Math.random()}`;
+          setMessages((prev) => [
+            ...prev,
+            { type: 'ai', text: data.message, id: aiMessageId },
+          ]);
+        },
+        (chunk) => {
+          if (!isMuted) {
+            playAudioChunkStreaming(chunk);
           }
-        } else {
-          console.log('🔇 Audio muted - skipping playback');
-        }
+        },
+        !isMuted
+      );
 
-        if (onMessageReceived) {
-          onMessageReceived(response);
-        }
-      } else {
-        // Standalone: Use WebSocket streaming
-        console.log(`🔌 Using WebSocket for REAL-TIME streaming TTS (Standalone) - Muted: ${isMuted}`);
-
-        if (!isMuted) {
-          console.log('🎵 Audio will play as chunks arrive!');
-          // Clear any previous audio queue
-          clearAudioQueue();
-        } else {
-          console.log('🔇 Audio muted - text only');
-        }
-
-        const response = await getDocentMessageWS(
-          userId,
-          landmark,
-          userMessage,
-          'ko',
-          // Text received callback
-          (data) => {
-            console.log('📨 Text received:', data.message.substring(0, 50) + '...');
-            // Add AI message to chat when text arrives with unique ID
-            const aiMessageId = `ai-${Date.now()}-${Math.random()}`;
-            setMessages((prev) => [
-              ...prev,
-              { type: 'ai', text: data.message, id: aiMessageId },
-            ]);
-          },
-          // Audio chunk received callback - PLAY IMMEDIATELY (only if not muted)
-          (chunk) => {
-            if (!isMuted) {
-              console.log(`📥 Audio chunk received: ${chunk.byteLength} bytes - Playing NOW!`);
-              playAudioChunkStreaming(chunk); // 🔥 즉시 재생!
-            } else {
-              console.log(`📥 Audio chunk received but muted: ${chunk.byteLength} bytes`);
-            }
-          },
-          !isMuted  // enable_tts parameter
-        );
-
-        console.log('✅ WebSocket streaming complete');
-
-        if (onMessageReceived) {
-          onMessageReceived({ message: response.message });
-        }
+      if (onMessageReceived) {
+        onMessageReceived({ message: response.message });
       }
     } catch (error) {
-      console.error('❌ Error sending message:', error);
+      console.error(' Error sending message:', error);
       const errorMessageId = `error-${Date.now()}-${Math.random()}`;
       setMessages((prev) => [
         ...prev,
@@ -146,7 +82,6 @@ const DocentDialog = ({ userId, landmark, onMessageReceived, isMuted, setIsMuted
 
   return (
     <View style={styles.container}>
-      {/* Chat Messages */}
       <ScrollView style={styles.messageContainer}>
         {messages.map((msg) => (
           <View
@@ -174,7 +109,6 @@ const DocentDialog = ({ userId, landmark, onMessageReceived, isMuted, setIsMuted
         )}
       </ScrollView>
 
-      {/* Quick Questions */}
       <View style={styles.quickQuestions}>
         <TouchableOpacity
           style={styles.quickButton}
@@ -196,7 +130,6 @@ const DocentDialog = ({ userId, landmark, onMessageReceived, isMuted, setIsMuted
         </TouchableOpacity>
       </View>
 
-      {/* Input Area */}
       <View style={styles.inputContainer}>
         <TextInput
           style={styles.input}

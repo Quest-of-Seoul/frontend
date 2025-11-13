@@ -1,14 +1,10 @@
-/**
- * Quest Screen - Expo Location Version
- * Shows map with quest markers and allows quest selection
- */
-
 import React, { useState, useEffect } from 'react';
-import { View, StyleSheet, Alert, SafeAreaView, Text, TouchableOpacity, ScrollView } from 'react-native';
-import * as Location from 'expo-location';
-// import QuestMap from '../components/QuestMap';
+import { View, StyleSheet, Alert, SafeAreaView, Text, TouchableOpacity, ScrollView, Platform, PermissionsAndroid } from 'react-native';
+import Geolocation from '@react-native-community/geolocation';
 import QuestList from '../components/QuestList';
 import TabBar from '../components/TabBar';
+import * as Colors from '../constants/colors';
+import { SPACING, RADIUS, FONT_SIZE, FONT_WEIGHT } from '../constants/spacing';
 
 const QuestScreen = ({ navigation, route }) => {
   const [userLocation, setUserLocation] = useState(null);
@@ -20,7 +16,6 @@ const QuestScreen = ({ navigation, route }) => {
   }, []);
 
   useEffect(() => {
-    // Show detail view if quest was selected from HomeScreen
     if (selectedQuestFromHome) {
       setShowDetail(true);
     }
@@ -28,20 +23,30 @@ const QuestScreen = ({ navigation, route }) => {
 
   const requestLocationPermission = async () => {
     try {
-      const { status } = await Location.requestForegroundPermissionsAsync();
-
-      if (status !== 'granted') {
-        Alert.alert(
-          '위치 권한 필요',
-          '퀘스트를 찾기 위해 위치 권한이 필요합니다.',
-          [{ text: '확인' }]
+      if (Platform.OS === 'android') {
+        const granted = await PermissionsAndroid.request(
+          PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION,
+          {
+            title: '위치 권한 요청',
+            message: 'Quest of Seoul 앱에서 현재 위치를 사용하려고 합니다.',
+            buttonNeutral: '나중에',
+            buttonNegative: '거부',
+            buttonPositive: '허용',
+          }
         );
-        // Default to Seoul City Hall
-        setUserLocation({
-          latitude: 37.5665,
-          longitude: 126.9780,
-        });
-        return;
+
+        if (granted !== PermissionsAndroid.RESULTS.GRANTED) {
+          Alert.alert(
+            '위치 권한 필요',
+            '퀘스트를 찾기 위해 위치 권한이 필요합니다.',
+            [{ text: '확인' }]
+          );
+          setUserLocation({
+            latitude: 37.5665,
+            longitude: 126.9780,
+          });
+          return;
+        }
       }
 
       getCurrentLocation();
@@ -50,24 +55,23 @@ const QuestScreen = ({ navigation, route }) => {
     }
   };
 
-  const getCurrentLocation = async () => {
-    try {
-      const location = await Location.getCurrentPositionAsync({
-        accuracy: Location.Accuracy.High,
-      });
-
-      setUserLocation({
-        latitude: location.coords.latitude,
-        longitude: location.coords.longitude,
-      });
-    } catch (error) {
-      console.error('Error getting location:', error);
-      // Default to Seoul City Hall
-      setUserLocation({
-        latitude: 37.5665,
-        longitude: 126.9780,
-      });
-    }
+  const getCurrentLocation = () => {
+    Geolocation.getCurrentPosition(
+      (position) => {
+        setUserLocation({
+          latitude: position.coords.latitude,
+          longitude: position.coords.longitude,
+        });
+      },
+      (error) => {
+        console.error('Error getting location:', error);
+        setUserLocation({
+          latitude: 37.5665,
+          longitude: 126.9780,
+        });
+      },
+      { enableHighAccuracy: true, timeout: 20000, maximumAge: 1000 }
+    );
   };
 
   const handleQuestSelected = (quest) => {
@@ -102,12 +106,10 @@ const QuestScreen = ({ navigation, route }) => {
     navigation.navigate('My');
   };
 
-  // Quest Detail View
   if (showDetail && selectedQuestFromHome) {
     return (
       <SafeAreaView style={styles.container}>
         <ScrollView style={styles.detailContainer}>
-          {/* Header */}
           <View style={styles.detailHeader}>
             <TouchableOpacity
               style={styles.backButton}
@@ -118,7 +120,6 @@ const QuestScreen = ({ navigation, route }) => {
             <Text style={styles.detailTitle}>{selectedQuestFromHome.name}</Text>
           </View>
 
-          {/* Quest Info Card */}
           <View style={styles.detailCard}>
             <Text style={styles.detailCategory}>
               📍 {selectedQuestFromHome.category}
@@ -153,7 +154,6 @@ const QuestScreen = ({ navigation, route }) => {
               {selectedQuestFromHome.overview || '설명이 없습니다.'}
             </Text>
 
-            {/* AR Button */}
             <TouchableOpacity
               style={styles.arButton}
               onPress={() => {
@@ -170,7 +170,7 @@ const QuestScreen = ({ navigation, route }) => {
         <TabBar
           activeTab="quest"
           onHomePress={navigateToHome}
-          onQuestPress={() => {}}
+          onQuestPress={() => { }}
           onARPress={navigateToAR}
           onRewardPress={navigateToRewards}
           onMyPress={navigateToMy}
@@ -179,7 +179,6 @@ const QuestScreen = ({ navigation, route }) => {
     );
   }
 
-  // Quest List View (default)
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.content}>
@@ -191,7 +190,7 @@ const QuestScreen = ({ navigation, route }) => {
       <TabBar
         activeTab="quest"
         onHomePress={navigateToHome}
-        onQuestPress={() => {}}
+        onQuestPress={() => { }}
         onARPress={navigateToAR}
         onRewardPress={navigateToRewards}
         onMyPress={navigateToMy}
@@ -203,112 +202,111 @@ const QuestScreen = ({ navigation, route }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f9fafb',
+    backgroundColor: Colors.GRAY_50,
   },
   content: {
     flex: 1,
   },
-  // Detail View Styles
   detailContainer: {
     flex: 1,
-    backgroundColor: '#f9fafb',
+    backgroundColor: Colors.BACKGROUND_LIGHT,
   },
   detailHeader: {
-    backgroundColor: '#6366f1',
-    padding: 20,
-    paddingTop: 10,
+    backgroundColor: Colors.SECONDARY,
+    padding: SPACING.xl,
+    paddingTop: SPACING.md,
   },
   backButton: {
-    paddingVertical: 8,
-    paddingHorizontal: 12,
+    paddingVertical: SPACING.sm,
+    paddingHorizontal: SPACING.md,
     backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    borderRadius: 8,
+    borderRadius: RADIUS.sm,
     alignSelf: 'flex-start',
-    marginBottom: 12,
+    marginBottom: SPACING.md,
   },
   backButtonText: {
-    color: '#ffffff',
-    fontSize: 14,
-    fontWeight: '600',
+    color: Colors.TEXT_WHITE,
+    fontSize: FONT_SIZE.sm,
+    fontWeight: FONT_WEIGHT.semibold,
   },
   detailTitle: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#ffffff',
+    fontSize: FONT_SIZE.xxl,
+    fontWeight: FONT_WEIGHT.bold,
+    color: Colors.TEXT_WHITE,
   },
   detailCard: {
-    backgroundColor: '#ffffff',
-    margin: 16,
-    borderRadius: 12,
-    padding: 20,
-    shadowColor: '#000',
+    backgroundColor: Colors.BACKGROUND_WHITE,
+    margin: SPACING.lg,
+    borderRadius: RADIUS.lg,
+    padding: SPACING.xl,
+    shadowColor: Colors.SHADOW,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
     elevation: 3,
   },
   detailCategory: {
-    fontSize: 16,
-    color: '#f97316',
-    fontWeight: '600',
-    marginBottom: 16,
+    fontSize: FONT_SIZE.lg,
+    color: Colors.PRIMARY,
+    fontWeight: FONT_WEIGHT.semibold,
+    marginBottom: SPACING.lg,
   },
   detailInfoRow: {
     flexDirection: 'row',
     justifyContent: 'space-around',
-    marginBottom: 20,
+    marginBottom: SPACING.xl,
   },
   detailInfoItem: {
     alignItems: 'center',
   },
   detailInfoLabel: {
-    fontSize: 12,
-    color: '#64748b',
+    fontSize: FONT_SIZE.xs,
+    color: Colors.TEXT_MUTED,
     marginBottom: 4,
   },
   detailInfoValue: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#1e293b',
+    fontSize: FONT_SIZE.xl,
+    fontWeight: FONT_WEIGHT.bold,
+    color: Colors.TEXT_PRIMARY,
   },
   divider: {
     height: 1,
-    backgroundColor: '#e5e7eb',
-    marginVertical: 16,
+    backgroundColor: Colors.BORDER_LIGHT,
+    marginVertical: SPACING.lg,
   },
   detailSectionTitle: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: '#1e293b',
-    marginBottom: 8,
+    fontSize: FONT_SIZE.lg,
+    fontWeight: FONT_WEIGHT.bold,
+    color: Colors.TEXT_PRIMARY,
+    marginBottom: SPACING.sm,
   },
   detailAddress: {
-    fontSize: 14,
-    color: '#64748b',
+    fontSize: FONT_SIZE.sm,
+    color: Colors.TEXT_MUTED,
     lineHeight: 20,
   },
   detailOverview: {
-    fontSize: 14,
-    color: '#475569',
+    fontSize: FONT_SIZE.sm,
+    color: Colors.TEXT_SECONDARY,
     lineHeight: 22,
   },
   arButton: {
-    backgroundColor: '#f97316',
+    backgroundColor: Colors.PRIMARY,
     paddingVertical: 14,
-    paddingHorizontal: 20,
-    borderRadius: 12,
+    paddingHorizontal: SPACING.xl,
+    borderRadius: RADIUS.lg,
     alignItems: 'center',
-    marginTop: 20,
-    shadowColor: '#f97316',
+    marginTop: SPACING.xl,
+    shadowColor: Colors.PRIMARY,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 8,
     elevation: 4,
   },
   arButtonText: {
-    color: '#ffffff',
-    fontSize: 16,
-    fontWeight: 'bold',
+    color: Colors.TEXT_WHITE,
+    fontSize: FONT_SIZE.lg,
+    fontWeight: FONT_WEIGHT.bold,
   },
 });
 

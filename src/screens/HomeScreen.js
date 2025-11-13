@@ -1,8 +1,3 @@
-/**
- * Home Screen
- * Main landing screen with navigation to features
- */
-
 import React, { useEffect, useState, useCallback, useRef } from 'react';
 import {
   View,
@@ -15,30 +10,31 @@ import {
   TextInput,
   Modal,
   Image,
-  ActivityIndicator,
   Linking,
 } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
+import LinearGradient from 'react-native-linear-gradient';
 import { useFocusEffect } from '@react-navigation/native';
-import * as Location from 'expo-location';
+import Geolocation from '@react-native-community/geolocation';
+import { PermissionsAndroid, Platform } from 'react-native';
 import { getCurrentUser, signOut } from '../utils/supabase';
-import { getUserPoints, getNearbyQuests } from '../api/fastapi';
+import { getUserPoints, getNearbyQuests, getAllQuests } from '../api/fastapi';
 import { calculateDistance, getWalkingRoute } from '../utils/navigation';
 import TabBar from '../components/TabBar';
 import SimpleKakaoMap from '../components/SimpleKakaoMap';
+import CategoryChip from '../components/CategoryChip';
+import * as Colors from '../constants/colors';
+import { SPACING, RADIUS, FONT_SIZE, FONT_WEIGHT } from '../constants/spacing';
 
 const HomeScreen = ({ navigation }) => {
   const [user, setUser] = useState(null);
   const [points, setPoints] = useState(0);
 
-  // UI state for new home layout
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('All');
   const [placeModalVisible, setPlaceModalVisible] = useState(false);
   const [selectedPlace, setSelectedPlace] = useState(null);
   const [filterModalVisible, setFilterModalVisible] = useState(false);
 
-  // Map state
   const [currentLocation, setCurrentLocation] = useState(null);
   const [region, setRegion] = useState({
     latitude: 37.5665, // Seoul City Hall
@@ -49,81 +45,87 @@ const HomeScreen = ({ navigation }) => {
   const [quests, setQuests] = useState([]);
   const webViewRef = useRef(null);
 
-  // 거리가 너무 먼 경우 오버레이 표시
   const [showDistanceOverlay, setShowDistanceOverlay] = useState(false);
 
-  // Load user data once on mount
   useEffect(() => {
     loadUserData();
     requestLocationPermission();
-
-    // 🧪 테스트: 서울 시청 위치로 퀘스트 가져오기 (위치 상관없이)
     fetchNearbyQuests(37.5665, 126.9780);
   }, []);
 
-  // Request location permission and watch location in real-time
   const requestLocationPermission = async () => {
     try {
-      const { status } = await Location.requestForegroundPermissionsAsync();
-
-      if (status === 'granted') {
-        // 초기 위치 가져오기
-        const location = await Location.getCurrentPositionAsync({});
-        const { latitude, longitude } = location.coords;
-
-        setCurrentLocation({ latitude, longitude });
-        setRegion({
-          latitude,
-          longitude,
-          latitudeDelta: 0.05,
-          longitudeDelta: 0.05,
-        });
-
-        console.log('📍 Initial location:', latitude, longitude);
-
-        // 실시간 위치 추적 시작
-        const subscription = await Location.watchPositionAsync(
+      if (Platform.OS === 'android') {
+        const granted = await PermissionsAndroid.request(
+          PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION,
           {
-            accuracy: Location.Accuracy.High,
-            timeInterval: 2000, // 2초마다 업데이트 (빠른 반응)
-            distanceInterval: 5, // 5미터 이동 시 업데이트 (민감하게)
-          },
-          (newLocation) => {
-            const { latitude, longitude } = newLocation.coords;
-            console.log('🔄 Location updated:', latitude, longitude);
-
-            setCurrentLocation({ latitude, longitude });
-            setRegion({
-              latitude,
-              longitude,
-              latitudeDelta: 0.05,
-              longitudeDelta: 0.05,
-            });
-
-            // 위치 변경 시 주변 퀘스트 다시 가져오기
-            fetchNearbyQuests(latitude, longitude);
+            title: '위치 권한 요청',
+            message: 'Quest of Seoul 앱에서 현재 위치를 사용하려고 합니다.',
+            buttonNeutral: '나중에',
+            buttonNegative: '거부',
+            buttonPositive: '허용',
           }
         );
 
-        // 초기 퀘스트 로드
-        fetchNearbyQuests(latitude, longitude);
-
-        // Cleanup: 컴포넌트 언마운트 시 구독 해제
-        return () => {
-          subscription.remove();
-        };
-      } else {
-        console.log('⚠️ Location permission denied');
+        if (granted !== PermissionsAndroid.RESULTS.GRANTED) {
+          return;
+        }
       }
+
+      Geolocation.getCurrentPosition(
+        (position) => {
+          const { latitude, longitude } = position.coords;
+
+          setCurrentLocation({ latitude, longitude });
+          setRegion({
+            latitude,
+            longitude,
+            latitudeDelta: 0.05,
+            longitudeDelta: 0.05,
+          });
+
+          fetchNearbyQuests(latitude, longitude);
+        },
+        (error) => {
+          console.error('Error getting location:', error);
+        },
+        { enableHighAccuracy: true, timeout: 20000, maximumAge: 1000 }
+      );
+
+      const watchId = Geolocation.watchPosition(
+        (position) => {
+          const { latitude, longitude } = position.coords;
+
+          setCurrentLocation({ latitude, longitude });
+          setRegion({
+            latitude,
+            longitude,
+            latitudeDelta: 0.05,
+            longitudeDelta: 0.05,
+          });
+
+          fetchNearbyQuests(latitude, longitude);
+        },
+        (error) => {
+          console.error('Error watching location:', error);
+        },
+        {
+          enableHighAccuracy: true,
+          distanceFilter: 5, // 5미터 이동 시 업데이트
+          interval: 2000, // Android: 2초마다 업데이트
+        }
+      );
+
+      return () => {
+        Geolocation.clearWatch(watchId);
+      };
     } catch (error) {
       console.error('Error getting location:', error);
     }
   };
 
-  // Refresh points whenever screen is focused
   useFocusEffect(
     useCallback(() => {
-      console.log('🔄 HomeScreen focused - refreshing points');
       refreshPoints();
     }, [])
   );
@@ -132,23 +134,17 @@ const HomeScreen = ({ navigation }) => {
     try {
       const currentUser = await getCurrentUser();
 
-      console.log('📱 Current User:', currentUser); // 디버그
-
       setUser(currentUser);
 
       if (currentUser && currentUser.id) {
-        console.log('📡 Fetching points for user:', currentUser.id);
         try {
           const pointsData = await getUserPoints(currentUser.id);
-          console.log('✅ Points data:', pointsData);
           setPoints(pointsData.total_points);
         } catch (error) {
-          console.error('❌ Error fetching points:', error.response?.data || error.message);
-          // 게스트 모드나 에러 시 포인트 0으로 유지
+          console.error('Error fetching points:', error.response?.data || error.message);
           setPoints(0);
         }
       } else {
-        console.log('⚠️ Guest mode - no user ID');
         setPoints(0);
       }
     } catch (error) {
@@ -163,296 +159,34 @@ const HomeScreen = ({ navigation }) => {
       const currentUser = await getCurrentUser();
       if (currentUser && currentUser.id) {
         const pointsData = await getUserPoints(currentUser.id);
-        console.log('🔄 Points refreshed:', pointsData.total_points);
         setPoints(pointsData.total_points);
       }
     } catch (error) {
-      console.error('❌ Error refreshing points:', error);
+      console.error('Error refreshing points:', error);
     }
   };
 
-  // 주변 퀘스트 가져오기
   const fetchNearbyQuests = async (latitude, longitude) => {
     try {
-      console.log('🔍 Fetching nearby quests:', latitude, longitude);
-      const nearbyQuests = await getNearbyQuests(latitude, longitude, 50.0); // 50km 반경 (테스트용)
-      console.log('✅ Nearby quests:', nearbyQuests);
+      const [nearbyData, allQuestsData] = await Promise.all([
+        getNearbyQuests(latitude, longitude, 50.0),
+        getAllQuests(),
+      ]);
 
-      // 서울 주요 관광지 마커 (항상 표시)
-      const seoulLandmarks = [
-        {
-          quest_id: 101,
-          title: '경복궁',
-          latitude: 37.5796,
-          longitude: 126.9770,
-          category: 'Heritage',
-          distance_km: 2.0,
-          reward_point: 500,
-          address: '서울특별시 종로구 사직로 161',
-          description: '조선 왕조의 정궁',
-        },
-        {
-          quest_id: 102,
-          title: '남산 N서울타워',
-          latitude: 37.5512,
-          longitude: 126.9882,
-          category: 'Landmark',
-          distance_km: 3.5,
-          reward_point: 400,
-          address: '서울특별시 용산구 남산공원길 105',
-          description: '서울의 랜드마크 타워',
-        },
-        {
-          quest_id: 103,
-          title: '명동 쇼핑거리',
-          latitude: 37.5636,
-          longitude: 126.9864,
-          category: 'Shopping',
-          distance_km: 1.5,
-          reward_point: 300,
-          address: '서울특별시 중구 명동',
-          description: '서울 최대 쇼핑 거리',
-        },
-        {
-          quest_id: 104,
-          title: '광화문 광장',
-          latitude: 37.5720,
-          longitude: 126.9769,
-          category: 'Heritage',
-          distance_km: 1.2,
-          reward_point: 250,
-          address: '서울특별시 종로구 세종로',
-          description: '세종대왕 동상이 있는 광장',
-        },
-        {
-          quest_id: 105,
-          title: '홍대 거리',
-          latitude: 37.5563,
-          longitude: 126.9224,
-          category: 'K-culture',
-          distance_km: 5.0,
-          reward_point: 400,
-          address: '서울특별시 마포구 홍익로',
-          description: '젊음의 거리, 예술과 문화의 중심',
-        },
-        {
-          quest_id: 106,
-          title: '강남역',
-          latitude: 37.4979,
-          longitude: 127.0276,
-          category: 'Shopping',
-          distance_km: 8.0,
-          reward_point: 350,
-          address: '서울특별시 강남구 강남대로',
-          description: '강남 스타일의 중심지',
-        },
-        {
-          quest_id: 107,
-          title: '북촌 한옥마을',
-          latitude: 37.5824,
-          longitude: 126.9833,
-          category: 'Heritage',
-          distance_km: 2.3,
-          reward_point: 450,
-          address: '서울특별시 종로구 계동',
-          description: '전통 한옥이 보존된 마을',
-        },
-        {
-          quest_id: 108,
-          title: '이태원',
-          latitude: 37.5345,
-          longitude: 126.9948,
-          category: 'Cuisine',
-          distance_km: 3.0,
-          reward_point: 300,
-          address: '서울특별시 용산구 이태원동',
-          description: '세계 각국의 음식을 맛볼 수 있는 거리',
-        },
-      ];
+      const nearbyQuests = nearbyData.quests || [];
+      const allQuestsList = allQuestsData || [];
 
-      // 현재 위치 주변 마커 (100m ~ 500m)
-      const nearbyMockQuests = [
-        {
-          quest_id: 1,
-          title: '테스트 퀘스트 1',
-          latitude: latitude + 0.0015, // 약 165m 북쪽
-          longitude: longitude + 0.0010, // 약 100m 동쪽
-          category: 'Heritage',
-          distance_km: 0.2,
-          reward_point: 300,
-          address: '주변 장소 1',
-          description: '현재 위치 근처 테스트 퀘스트입니다.',
-        },
-        {
-          quest_id: 2,
-          title: '테스트 퀘스트 2',
-          latitude: latitude - 0.0020, // 약 220m 남쪽
-          longitude: longitude + 0.0015, // 약 150m 동쪽
-          category: 'Landmark',
-          distance_km: 0.3,
-          reward_point: 250,
-          address: '주변 장소 2',
-          description: '현재 위치 근처 테스트 퀘스트입니다.',
-        },
-        {
-          quest_id: 3,
-          title: '테스트 퀘스트 3',
-          latitude: latitude + 0.0025, // 약 275m 북쪽
-          longitude: longitude - 0.0010, // 약 100m 서쪽
-          category: 'Shopping',
-          distance_km: 0.3,
-          reward_point: 200,
-          address: '주변 장소 3',
-          description: '현재 위치 근처 테스트 퀘스트입니다.',
-        },
-      ];
+      const combinedQuests = [...allQuestsList, ...nearbyQuests];
 
-      // API 퀘스트가 있으면 추가, 없으면 Mock만 사용
-      const apiQuests = (nearbyQuests.quests && nearbyQuests.quests.length > 0)
-        ? nearbyQuests.quests
-        : [];
+      const uniqueQuests = Array.from(
+        new Map(combinedQuests.map(q => [q.quest_id || q.id, q])).values()
+      );
 
-      // 서울 관광지 + 현재 위치 주변 + API 퀘스트 모두 합치기
-      const allQuests = [...seoulLandmarks, ...nearbyMockQuests, ...apiQuests];
-
-      console.log('📍 Total quests:', allQuests.length, '(Seoul:', seoulLandmarks.length, '+ Nearby:', nearbyMockQuests.length, '+ API:', apiQuests.length + ')');
-      setQuests(allQuests);
+      setQuests(uniqueQuests);
     } catch (error) {
-      console.error('❌ Error fetching nearby quests:', error);
-
-      // API 에러 시에도 서울 관광지 + 현재 위치 주변 Mock 데이터 표시
-      console.log('⚠️ API error, using mock data');
-
-      const seoulLandmarks = [
-        {
-          quest_id: 101,
-          title: '경복궁',
-          latitude: 37.5796,
-          longitude: 126.9770,
-          category: 'Heritage',
-          distance_km: 2.0,
-          reward_point: 500,
-          address: '서울특별시 종로구 사직로 161',
-          description: '조선 왕조의 정궁',
-        },
-        {
-          quest_id: 102,
-          title: '남산 N서울타워',
-          latitude: 37.5512,
-          longitude: 126.9882,
-          category: 'Landmark',
-          distance_km: 3.5,
-          reward_point: 400,
-          address: '서울특별시 용산구 남산공원길 105',
-          description: '서울의 랜드마크 타워',
-        },
-        {
-          quest_id: 103,
-          title: '명동 쇼핑거리',
-          latitude: 37.5636,
-          longitude: 126.9864,
-          category: 'Shopping',
-          distance_km: 1.5,
-          reward_point: 300,
-          address: '서울특별시 중구 명동',
-          description: '서울 최대 쇼핑 거리',
-        },
-        {
-          quest_id: 104,
-          title: '광화문 광장',
-          latitude: 37.5720,
-          longitude: 126.9769,
-          category: 'Heritage',
-          distance_km: 1.2,
-          reward_point: 250,
-          address: '서울특별시 종로구 세종로',
-          description: '세종대왕 동상이 있는 광장',
-        },
-        {
-          quest_id: 105,
-          title: '홍대 거리',
-          latitude: 37.5563,
-          longitude: 126.9224,
-          category: 'K-culture',
-          distance_km: 5.0,
-          reward_point: 400,
-          address: '서울특별시 마포구 홍익로',
-          description: '젊음의 거리, 예술과 문화의 중심',
-        },
-        {
-          quest_id: 106,
-          title: '강남역',
-          latitude: 37.4979,
-          longitude: 127.0276,
-          category: 'Shopping',
-          distance_km: 8.0,
-          reward_point: 350,
-          address: '서울특별시 강남구 강남대로',
-          description: '강남 스타일의 중심지',
-        },
-        {
-          quest_id: 107,
-          title: '북촌 한옥마을',
-          latitude: 37.5824,
-          longitude: 126.9833,
-          category: 'Heritage',
-          distance_km: 2.3,
-          reward_point: 450,
-          address: '서울특별시 종로구 계동',
-          description: '전통 한옥이 보존된 마을',
-        },
-        {
-          quest_id: 108,
-          title: '이태원',
-          latitude: 37.5345,
-          longitude: 126.9948,
-          category: 'Cuisine',
-          distance_km: 3.0,
-          reward_point: 300,
-          address: '서울특별시 용산구 이태원동',
-          description: '세계 각국의 음식을 맛볼 수 있는 거리',
-        },
-      ];
-
-      const nearbyMockQuests = [
-        {
-          quest_id: 1,
-          title: '테스트 퀘스트 1',
-          latitude: latitude + 0.0015,
-          longitude: longitude + 0.0010,
-          category: 'Heritage',
-          distance_km: 0.2,
-          reward_point: 300,
-          address: '주변 장소 1',
-          description: '현재 위치 근처 테스트 퀘스트입니다.',
-        },
-        {
-          quest_id: 2,
-          title: '테스트 퀘스트 2',
-          latitude: latitude - 0.0020,
-          longitude: longitude + 0.0015,
-          category: 'Landmark',
-          distance_km: 0.3,
-          reward_point: 250,
-          address: '주변 장소 2',
-          description: '현재 위치 근처 테스트 퀘스트입니다.',
-        },
-        {
-          quest_id: 3,
-          title: '테스트 퀘스트 3',
-          latitude: latitude + 0.0025,
-          longitude: longitude - 0.0010,
-          category: 'Shopping',
-          distance_km: 0.3,
-          reward_point: 200,
-          address: '주변 장소 3',
-          description: '현재 위치 근처 테스트 퀘스트입니다.',
-        },
-      ];
-
-      const allQuests = [...seoulLandmarks, ...nearbyMockQuests];
-      console.log('📍 Error fallback - Total quests:', allQuests.length);
-      setQuests(allQuests);
+      console.error('Error fetching nearby quests:', error);
+      Alert.alert('오류', '퀘스트를 불러올 수 없습니다.');
+      setQuests([]);
     }
   };
 
@@ -473,17 +207,10 @@ const HomeScreen = ({ navigation }) => {
   };
 
   const navigateToMy = () => {
-    // 유지보수: 마이 페이지 라우트가 없다면 안전하게 안내
-    try {
-      navigation.navigate('My');
-    } catch (e) {
-      Alert.alert('안내', '마이 페이지는 준비 중입니다.');
-    }
+    Alert.alert('알림', '마이 페이지를 준비하고 있습니다.');
   };
 
-  // 퀘스트 마커 클릭 핸들러
   const handleQuestMarkerPress = (quest) => {
-    console.log('🎯 Quest marker pressed:', quest);
     setSelectedPlace({
       name: quest.title || quest.name,
       category: quest.category || 'Quest',
@@ -498,7 +225,6 @@ const HomeScreen = ({ navigation }) => {
     setPlaceModalVisible(true);
   };
 
-  // 네비게이션 시작 핸들러 - 거리 계산 후 앱 내 경로 표시
   const handleStartNavigation = async () => {
     if (!currentLocation) {
       Alert.alert('위치 정보 없음', '현재 위치를 확인할 수 없습니다.');
@@ -519,9 +245,7 @@ const HomeScreen = ({ navigation }) => {
         selectedPlace.longitude
       );
 
-      console.log(`📏 Distance to quest: ${distance.toFixed(2)} km`);
-
-      // 2. 거리에 따른 처리
+      // 거리에 따른 처리
       if (distance > 10.0) {
         // 10km 이상이면 오버레이 표시
         setShowDistanceOverlay(true);
@@ -529,9 +253,7 @@ const HomeScreen = ({ navigation }) => {
       } else {
         // 10km 이내이면 바로 경로 가져오기
         try {
-          console.log('🚶 Starting walking quest...');
-
-          // 3. Kakao Mobility API로 경로 가져오기
+          // Kakao Mobility API로 경로 가져오기
           const routeData = await getWalkingRoute(
             currentLocation.latitude,
             currentLocation.longitude,
@@ -539,46 +261,39 @@ const HomeScreen = ({ navigation }) => {
             selectedPlace.longitude
           );
 
-          console.log(`✅ Route received: ${routeData.coordinates.length} points`);
-          console.log(`📏 Distance: ${routeData.distance}m, Duration: ${routeData.duration}s`);
-
-          // 4. 지도에 경로 그리기
+          // 지도에 경로 그리기
           if (webViewRef.current && webViewRef.current.drawRoute) {
             webViewRef.current.drawRoute(routeData.coordinates);
             setPlaceModalVisible(false);
 
-            // 간단한 토스트 메시지
             Alert.alert(
               '걷기 퀘스트 시작! 🚶',
               `거리: ${routeData.distance}m · 예상 시간: ${Math.ceil(routeData.duration / 60)}분`,
               [{ text: '확인' }]
             );
           } else {
-            console.error('❌ Map ref not available');
+            console.error('Map ref not available');
             Alert.alert('오류', '지도를 사용할 수 없습니다.');
           }
         } catch (routeError) {
-          console.error('❌ Route error:', routeError);
+          console.error('Route error:', routeError);
           Alert.alert('경로 조회 실패', routeError.message || '경로를 가져올 수 없습니다.');
         }
       }
     } catch (error) {
-      console.error('❌ Navigation error:', error);
+      console.error('Navigation error:', error);
       Alert.alert('오류', '거리 계산에 실패했습니다.');
     }
   };
 
-  // 카카오맵 앱으로 길찾기 열기
   const openKakaoMapNavigation = async () => {
     if (!currentLocation || !selectedPlace) return;
 
     const { latitude: startLat, longitude: startLon } = currentLocation;
     const { latitude: destLat, longitude: destLon, name: destName } = selectedPlace;
 
-    // 카카오맵 딥링크 (도보 길찾기)
     const kakaoMapUrl = `kakaomap://route?sp=${startLat},${startLon}&ep=${destLat},${destLon}&by=FOOT`;
 
-    // 웹 URL (앱이 없을 경우 대체)
     const webUrl = `https://map.kakao.com/link/to/${encodeURIComponent(destName || '목적지')},${destLat},${destLon}`;
 
     try {
@@ -586,12 +301,11 @@ const HomeScreen = ({ navigation }) => {
       if (canOpen) {
         await Linking.openURL(kakaoMapUrl);
       } else {
-        // 카카오맵 앱이 없으면 웹으로 열기
         await Linking.openURL(webUrl);
       }
       setShowDistanceOverlay(false);
     } catch (error) {
-      console.error('❌ Error opening Kakao Map:', error);
+      console.error('Error opening Kakao Map:', error);
       Alert.alert('오류', '카카오맵을 열 수 없습니다.');
     }
   };
@@ -616,7 +330,6 @@ const HomeScreen = ({ navigation }) => {
 
   return (
     <SafeAreaView style={styles.container}>
-      {/* Top: Title, Logout, Search */}
       <View style={styles.topArea}>
         <View style={styles.headerRow}>
           <Text style={styles.title}>Quest of Seoul</Text>
@@ -628,13 +341,6 @@ const HomeScreen = ({ navigation }) => {
         </View>
         <Text style={styles.subtitle}>AI AR 도슨트와 함께하는 서울 탐험</Text>
 
-        {/* 현재 위치 좌표 표시 */}
-        {currentLocation && (
-          <Text style={styles.locationCoords}>
-            📍 현재 위치: {currentLocation.latitude.toFixed(6)}, {currentLocation.longitude.toFixed(6)}
-          </Text>
-        )}
-
         <View style={styles.searchContainer}>
           <TextInput
             style={styles.searchInput}
@@ -645,13 +351,12 @@ const HomeScreen = ({ navigation }) => {
           />
           <TouchableOpacity
             style={styles.filterButton}
-            onPress={() => Alert.alert('안내', '필터 준비 중입니다.')}
+            onPress={() => setFilterModalVisible(true)}
           >
             <Text style={styles.filterIcon}>🔍</Text>
           </TouchableOpacity>
         </View>
 
-        {/* Category chips with filter button */}
         <View style={styles.chipsRowContainer}>
           <TouchableOpacity
             style={styles.settingsButton}
@@ -674,7 +379,6 @@ const HomeScreen = ({ navigation }) => {
           </ScrollView>
         </View>
 
-        {/* User points compact card */}
         {user && (
           <View style={styles.pointsCompact}>
             <Text style={styles.pointsCompactLabel}>보유 포인트</Text>
@@ -683,7 +387,6 @@ const HomeScreen = ({ navigation }) => {
         )}
       </View>
 
-      {/* Middle: Map area with Kakao Map */}
       <View style={styles.mapArea}>
         <SimpleKakaoMap
           ref={webViewRef}
@@ -694,7 +397,6 @@ const HomeScreen = ({ navigation }) => {
           style={styles.map}
         />
 
-        {/* 거리 초과 오버레이 */}
         {showDistanceOverlay && (
           <View style={styles.distanceOverlay}>
             <View style={styles.overlayContent}>
@@ -729,101 +431,104 @@ const HomeScreen = ({ navigation }) => {
         )}
       </View>
 
-      {/* Bottom Sheet Modal for place info */}
       <Modal visible={placeModalVisible} transparent animationType="slide" onRequestClose={() => setPlaceModalVisible(false)}>
         <View style={styles.modalBackdrop}>
           <View style={styles.modalSheet}>
             <View style={styles.modalHeader}>
-              <Text style={styles.modalCategory}>{selectedPlace?.category}</Text>
+              <View style={styles.categoryBadge}>
+                <Text style={styles.categoryBadgeText}>{selectedPlace?.category}</Text>
+              </View>
               <TouchableOpacity onPress={() => setPlaceModalVisible(false)}>
                 <Text style={styles.modalClose}>✕</Text>
               </TouchableOpacity>
             </View>
-            <Text style={styles.modalTitle}>{selectedPlace?.name}</Text>
-            <Text style={styles.modalMeta}>{selectedPlace?.address}</Text>
-            <View style={styles.modalBadges}>
-              <Text style={styles.badge}>{selectedPlace ? `${selectedPlace.distanceKm}km` : ''}</Text>
-              <Text style={styles.badgeBlue}>{selectedPlace ? `${selectedPlace.rewardPoint} P` : ''}</Text>
-            </View>
-            <Text style={styles.modalOverview} numberOfLines={3}>
-              {selectedPlace?.overview}
-            </Text>
 
-            {/* Button Row */}
-            <View style={styles.modalButtonRow}>
-              <TouchableOpacity
-                style={styles.navigationButton}
-                onPress={handleStartNavigation}
-              >
-                <Text style={styles.navigationButtonText}>📍 길찾기</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={styles.detailButton}
-                onPress={() => {
-                  setPlaceModalVisible(false);
-                  navigateToQuests(selectedPlace);
-                }}
-              >
-                <Text style={styles.detailButtonText}>상세 보기</Text>
+            <Text style={styles.modalTitle}>{selectedPlace?.name}</Text>
+            <Text style={styles.modalSubtitle}>{selectedPlace?.address}</Text>
+
+            <View style={styles.modalInfoRow}>
+              <View style={styles.infoItem}>
+                <Text style={styles.infoLabel}>거리</Text>
+                <Text style={styles.infoValue}>{selectedPlace?.distanceKm || 0} km</Text>
+              </View>
+              <View style={styles.infoItem}>
+                <Text style={styles.infoLabel}>포인트</Text>
+                <Text style={styles.infoValue}>{selectedPlace?.rewardPoint || 0} P</Text>
+              </View>
+            </View>
+
+            <View style={styles.navigationRow}>
+              <Text style={styles.navigationIcon}>🧭</Text>
+              <Text style={styles.navigationText}>Do you need navigation?</Text>
+              <TouchableOpacity onPress={handleStartNavigation}>
+                <Text style={styles.navigationArrow}>▶</Text>
               </TouchableOpacity>
             </View>
+
+            <TouchableOpacity
+              style={styles.startButton}
+              onPress={() => {
+                setPlaceModalVisible(false);
+                navigateToQuests(selectedPlace);
+              }}
+            >
+              <Text style={styles.startButtonText}>START</Text>
+            </TouchableOpacity>
           </View>
         </View>
       </Modal>
 
-      {/* Filter Modal */}
       <Modal visible={filterModalVisible} transparent animationType="fade" onRequestClose={() => setFilterModalVisible(false)}>
-        <LinearGradient
-          colors={['rgba(243, 247, 255, 0.5)', 'rgba(243, 247, 255, 1)']}
-          style={styles.filterOverlay}
-        >
-          <View style={styles.filterHeader}>
-            <Text style={styles.filterTitle}>Filter</Text>
-            <TouchableOpacity onPress={() => setFilterModalVisible(false)}>
-              <Text style={styles.filterClose}>✕</Text>
-            </TouchableOpacity>
-          </View>
-
-          <View style={styles.tipBox}>
-            <Text style={styles.tipTitle}>Choose Anything You Want</Text>
-            <Text style={styles.tipSubtitle}>
-              아래에 내가 준비한 테마들 중에서 골라보면 재미있는 여행지를 추천해줄게
-            </Text>
-          </View>
-
-          {/* 캐릭터 */}
-          <View style={styles.characterBox}>
-            <Image
-              source={require('../../assets/ai_docent.png')}
-              style={styles.characterImage}
-              resizeMode="contain"
-            />
-          </View>
-
-          {/* 카테고리 버튼 */}
-          <ScrollView style={styles.categoryScrollView} contentContainerStyle={styles.categoryScrollContent}>
-            <View style={styles.categoryContainer}>
-              {['Heritage', 'Cuisine', 'Shopping', 'K-culture', 'Healing', 'Art', 'Romantic', 'Walk', 'Faith', 'Nearest Trip', 'Most Rewarded', 'Newest'].map((cat) => (
-                <TouchableOpacity
-                  key={cat}
-                  style={styles.categoryChip}
-                  onPress={() => {
-                    setSelectedCategory(cat);
-                    setFilterModalVisible(false);
-                  }}
-                >
-                  <Text style={styles.categoryText}>{cat}</Text>
-                </TouchableOpacity>
-              ))}
+        <View style={styles.filterOverlay}>
+          <LinearGradient
+            colors={[Colors.BACKGROUND_LIGHT, Colors.BACKGROUND_WHITE]}
+            style={styles.filterContent}
+          >
+            <View style={styles.filterHeader}>
+              <Text style={styles.filterTitle}>Filter</Text>
+              <TouchableOpacity onPress={() => setFilterModalVisible(false)}>
+                <Text style={styles.filterClose}>✕</Text>
+              </TouchableOpacity>
             </View>
-          </ScrollView>
-        </LinearGradient>
+
+            <View style={styles.tipBox}>
+              <Text style={styles.tipTitle}>Choose Anything You Want</Text>
+              <Text style={styles.tipSubtitle}>
+                아래에 내가 준비한 테마들 중에서 골라보면 재미있는 여행지를 추천해줄게
+              </Text>
+            </View>
+
+            <View style={styles.characterBox}>
+              <Image
+                source={require('../../assets/ai_docent.png')}
+                style={styles.characterImage}
+                resizeMode="contain"
+              />
+            </View>
+
+            <ScrollView style={styles.categoryScrollView} contentContainerStyle={styles.categoryScrollContent}>
+              <View style={styles.categoryContainer}>
+                {['Heritage', 'Cuisine', 'Shopping', 'K-culture', 'Healing', 'Art', 'Romantic', 'Walk', 'Faith', 'Nearest Trip', 'Most Rewarded', 'Newest'].map((cat) => (
+                  <CategoryChip
+                    key={cat}
+                    label={cat}
+                    selected={selectedCategory === cat}
+                    size="large"
+                    onPress={() => {
+                      setSelectedCategory(cat);
+                      setFilterModalVisible(false);
+                    }}
+                  />
+                ))}
+              </View>
+            </ScrollView>
+          </LinearGradient>
+        </View>
       </Modal>
 
-      {/* Bottom Navigation */}
       <TabBar
         activeTab="home"
-        onHomePress={() => {}}
+        onHomePress={() => { }}
         onQuestPress={navigateToQuests}
         onARPress={navigateToAR}
         onRewardPress={navigateToRewards}
@@ -836,13 +541,13 @@ const HomeScreen = ({ navigation }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f3f7ff',
+    backgroundColor: Colors.BACKGROUND_LIGHT,
   },
   topArea: {
     paddingHorizontal: 16,
     paddingTop: 8,
     paddingBottom: 8,
-    backgroundColor: '#ffffff',
+    backgroundColor: Colors.BACKGROUND_WHITE,
   },
   headerRow: {
     flexDirection: 'row',
@@ -853,30 +558,24 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 32,
     fontWeight: 'bold',
-    color: '#1e293b',
+    color: Colors.TEXT_PRIMARY,
   },
   logoutButton: {
     position: 'absolute',
     right: 0,
     paddingHorizontal: 12,
     paddingVertical: 6,
-    backgroundColor: '#f3f4f6',
+    backgroundColor: Colors.GRAY_100,
     borderRadius: 8,
   },
   logoutText: {
     fontSize: 14,
-    color: '#1e293b',
+    color: Colors.TEXT_PRIMARY,
     fontWeight: '500',
   },
   subtitle: {
     fontSize: 16,
-    color: '#475569',
-  },
-  locationCoords: {
-    fontSize: 12,
-    color: '#64748b',
-    marginTop: 4,
-    fontFamily: 'monospace',
+    color: Colors.TEXT_SECONDARY,
   },
   searchContainer: {
     flexDirection: 'row',
@@ -886,16 +585,16 @@ const styles = StyleSheet.create({
   },
   searchInput: {
     flex: 1,
-    backgroundColor: '#ffffff',
-    color: '#1e293b',
+    backgroundColor: Colors.BACKGROUND_WHITE,
+    color: Colors.TEXT_PRIMARY,
     borderRadius: 12,
     paddingHorizontal: 14,
     paddingVertical: 10,
     borderWidth: 1,
-    borderColor: '#cbd5e1',
+    borderColor: Colors.BORDER_LIGHT,
   },
   filterButton: {
-    backgroundColor: '#f97316',
+    backgroundColor: Colors.PRIMARY,
     padding: 10,
     borderRadius: 12,
     alignItems: 'center',
@@ -911,7 +610,7 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   settingsButton: {
-    backgroundColor: '#f97316',
+    backgroundColor: Colors.PRIMARY,
     padding: 10,
     borderRadius: 12,
     alignItems: 'center',
@@ -924,50 +623,50 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   chip: {
-    backgroundColor: '#ffffff',
+    backgroundColor: Colors.BACKGROUND_WHITE,
     paddingVertical: 8,
     paddingHorizontal: 12,
     borderRadius: 16,
     marginRight: 8,
     borderWidth: 1,
-    borderColor: '#cbd5e1',
+    borderColor: Colors.BORDER_LIGHT,
   },
   chipActive: {
-    backgroundColor: '#f97316',
-    borderColor: '#f97316',
+    backgroundColor: Colors.PRIMARY,
+    borderColor: Colors.PRIMARY,
   },
   chipText: {
-    color: '#64748b',
+    color: Colors.TEXT_MUTED,
     fontSize: 12,
     fontWeight: '600',
   },
   chipTextActive: {
-    color: '#ffffff',
+    color: Colors.TEXT_WHITE,
   },
   pointsCompact: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     marginTop: 10,
-    backgroundColor: '#ffffff',
+    backgroundColor: Colors.BACKGROUND_WHITE,
     borderWidth: 1,
-    borderColor: '#cbd5e1',
+    borderColor: Colors.BORDER_LIGHT,
     borderRadius: 10,
     paddingVertical: 10,
     paddingHorizontal: 12,
   },
   pointsCompactLabel: {
-    color: '#f97316',
+    color: Colors.PRIMARY,
     fontSize: 12,
   },
   pointsCompactValue: {
-    color: '#f97316',
+    color: Colors.PRIMARY,
     fontSize: 18,
     fontWeight: '700',
   },
   mapArea: {
     flex: 1,
-    backgroundColor: '#f3f7ff',
+    backgroundColor: Colors.BACKGROUND_LIGHT,
     padding: 16,
   },
   map: {
@@ -977,117 +676,120 @@ const styles = StyleSheet.create({
   },
   modalBackdrop: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.4)',
+    backgroundColor: Colors.OVERLAY,
     justifyContent: 'flex-end',
   },
   modalSheet: {
-    backgroundColor: '#1e293b',
-    padding: 16,
-    borderTopLeftRadius: 16,
-    borderTopRightRadius: 16,
-    borderTopWidth: 1,
-    borderColor: '#334155',
+    backgroundColor: Colors.BACKGROUND_DARK,
+    padding: SPACING.xl,
+    borderTopLeftRadius: RADIUS.xxl,
+    borderTopRightRadius: RADIUS.xxl,
   },
   modalHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
+    marginBottom: SPACING.md,
   },
-  modalCategory: {
-    color: '#f97316',
-    fontWeight: '700',
+  categoryBadge: {
+    backgroundColor: Colors.PRIMARY,
+    paddingVertical: 6,
+    paddingHorizontal: 14,
+    borderRadius: RADIUS.sm,
+  },
+  categoryBadgeText: {
+    color: Colors.TEXT_WHITE,
+    fontSize: FONT_SIZE.sm,
+    fontWeight: FONT_WEIGHT.bold,
   },
   modalClose: {
-    color: '#e2e8f0',
-    fontSize: 18,
+    color: Colors.TEXT_ON_DARK,
+    fontSize: 24,
+    fontWeight: '300',
   },
   modalTitle: {
-    color: '#ffffff',
+    color: Colors.TEXT_WHITE,
+    fontSize: FONT_SIZE.title,
+    fontWeight: FONT_WEIGHT.bold,
+    marginBottom: SPACING.xs,
+  },
+  modalSubtitle: {
+    color: Colors.TEXT_ON_DARK,
+    fontSize: FONT_SIZE.md,
+    marginBottom: SPACING.lg,
+  },
+  modalInfoRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    backgroundColor: Colors.BACKGROUND_DARK_SECONDARY,
+    borderRadius: RADIUS.lg,
+    padding: SPACING.lg,
+    marginBottom: SPACING.lg,
+  },
+  infoItem: {
+    alignItems: 'center',
+  },
+  infoLabel: {
+    color: Colors.TEXT_LIGHT,
+    fontSize: FONT_SIZE.xs,
+    marginBottom: 4,
+  },
+  infoValue: {
+    color: Colors.TEXT_WHITE,
+    fontSize: FONT_SIZE.xl,
+    fontWeight: FONT_WEIGHT.bold,
+  },
+  navigationRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Colors.BACKGROUND_DARK_SECONDARY,
+    borderRadius: RADIUS.lg,
+    padding: SPACING.lg,
+    marginBottom: SPACING.lg,
+  },
+  navigationIcon: {
     fontSize: 20,
-    fontWeight: '700',
-    marginTop: 8,
+    marginRight: SPACING.sm,
   },
-  modalMeta: {
-    color: '#cbd5e1',
-    marginTop: 2,
-  },
-  modalBadges: {
-    flexDirection: 'row',
-    gap: 8,
-    marginTop: 10,
-  },
-  badge: {
-    backgroundColor: '#334155',
-    color: '#e2e8f0',
-    paddingVertical: 6,
-    paddingHorizontal: 10,
-    borderRadius: 8,
-    overflow: 'hidden',
-  },
-  badgeBlue: {
-    backgroundColor: '#f97316',
-    color: '#ffffff',
-    paddingVertical: 6,
-    paddingHorizontal: 10,
-    borderRadius: 8,
-    overflow: 'hidden',
-  },
-  modalOverview: {
-    color: '#e2e8f0',
-    marginTop: 10,
-    lineHeight: 20,
-  },
-  modalButtonRow: {
-    flexDirection: 'row',
-    gap: 10,
-    marginTop: 14,
-  },
-  navigationButton: {
+  navigationText: {
     flex: 1,
-    backgroundColor: '#6366f1',
-    borderRadius: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 12,
+    color: Colors.TEXT_ON_DARK,
+    fontSize: FONT_SIZE.md,
   },
-  navigationButtonText: {
-    color: '#ffffff',
-    fontWeight: '700',
-    fontSize: 14,
-  },
-  detailButton: {
-    flex: 1,
-    backgroundColor: '#f97316',
-    borderRadius: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 12,
-  },
-  detailButtonText: {
-    color: '#ffffff',
-    fontWeight: '700',
-    fontSize: 14,
+  navigationArrow: {
+    color: Colors.PRIMARY,
+    fontSize: 16,
   },
   startButton: {
-    backgroundColor: '#f97316',
-    borderRadius: 12,
+    backgroundColor: Colors.PRIMARY,
+    borderRadius: RADIUS.lg,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 12,
-    marginTop: 14,
+    paddingVertical: 16,
+    shadowColor: Colors.PRIMARY,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 6,
   },
   startButtonText: {
-    color: '#ffffff',
-    fontWeight: '700',
+    color: Colors.TEXT_WHITE,
+    fontSize: FONT_SIZE.xl,
+    fontWeight: FONT_WEIGHT.bold,
   },
-  // Filter Modal styles
   filterOverlay: {
     flex: 1,
+    backgroundColor: Colors.OVERLAY,
+    justifyContent: 'center',
     alignItems: 'center',
-    paddingTop: 60,
+  },
+  filterContent: {
+    width: '90%',
+    maxHeight: '80%',
+    borderRadius: 20,
+    padding: 24,
   },
   filterHeader: {
-    width: '90%',
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
@@ -1096,37 +798,36 @@ const styles = StyleSheet.create({
   filterTitle: {
     fontSize: 28,
     fontWeight: '700',
-    color: '#f97316',
+    color: Colors.PRIMARY,
   },
   filterClose: {
     fontSize: 28,
-    color: '#f97316',
+    color: Colors.PRIMARY,
     fontWeight: '600',
   },
   tipBox: {
-    width: '90%',
-    backgroundColor: '#ffffff',
+    backgroundColor: Colors.BACKGROUND_WHITE,
     borderRadius: 16,
     padding: 16,
     marginBottom: 20,
-    shadowColor: '#000',
+    shadowColor: Colors.SHADOW,
     shadowOpacity: 0.08,
     shadowRadius: 8,
     shadowOffset: { width: 0, height: 2 },
     elevation: 3,
     borderWidth: 1,
-    borderColor: '#cbd5e1',
+    borderColor: Colors.BORDER_LIGHT,
   },
   tipTitle: {
     fontWeight: '700',
     fontSize: 16,
-    color: '#10b981',
+    color: Colors.ACCENT,
     textAlign: 'center',
     marginBottom: 8,
   },
   tipSubtitle: {
     fontSize: 13,
-    color: '#475569',
+    color: Colors.TEXT_SECONDARY,
     textAlign: 'center',
     lineHeight: 20,
   },
@@ -1139,12 +840,10 @@ const styles = StyleSheet.create({
     height: 160,
   },
   categoryScrollView: {
-    width: '100%',
     flex: 1,
   },
   categoryScrollContent: {
-    paddingHorizontal: 20,
-    paddingBottom: 40,
+    paddingBottom: 20,
   },
   categoryContainer: {
     flexDirection: 'row',
@@ -1152,33 +851,15 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: 10,
   },
-  categoryChip: {
-    backgroundColor: '#f97316',
-    borderRadius: 20,
-    paddingHorizontal: 18,
-    paddingVertical: 10,
-    margin: 5,
-    shadowColor: '#f97316',
-    shadowOpacity: 0.3,
-    shadowRadius: 4,
-    shadowOffset: { width: 0, height: 2 },
-    elevation: 3,
-  },
-  categoryText: {
-    color: '#ffffff',
-    fontWeight: '600',
-    fontSize: 14,
-  },
-  // Distance Overlay styles
   distanceOverlay: {
     position: 'absolute',
     top: 10,
     left: 10,
     right: 10,
-    backgroundColor: '#f9f7f3',
+    backgroundColor: Colors.BACKGROUND_WHITE,
     borderRadius: 16,
     padding: 20,
-    shadowColor: '#000',
+    shadowColor: Colors.SHADOW_DARK,
     shadowOpacity: 0.1,
     shadowRadius: 10,
     shadowOffset: { width: 0, height: 4 },
@@ -1199,7 +880,7 @@ const styles = StyleSheet.create({
     position: 'absolute',
     bottom: 0,
     right: -8,
-    backgroundColor: '#ff6b6b',
+    backgroundColor: Colors.ERROR,
     borderRadius: 20,
     width: 32,
     height: 32,
@@ -1212,20 +893,20 @@ const styles = StyleSheet.create({
   overlayTitle: {
     fontSize: 22,
     fontWeight: 'bold',
-    color: '#5b9bd5',
+    color: Colors.SECONDARY,
     marginBottom: 8,
   },
   overlayMessage: {
     fontSize: 15,
-    color: '#666',
+    color: Colors.TEXT_SECONDARY,
     textAlign: 'center',
     lineHeight: 22,
   },
   overlayNavButton: {
-    backgroundColor: 'white',
+    backgroundColor: Colors.BACKGROUND_WHITE,
     borderRadius: 12,
     borderWidth: 2,
-    borderColor: '#5b9bd5',
+    borderColor: Colors.SECONDARY,
     paddingVertical: 14,
     paddingHorizontal: 20,
     flexDirection: 'row',
@@ -1240,12 +921,12 @@ const styles = StyleSheet.create({
   overlayNavText: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#5b9bd5',
+    color: Colors.SECONDARY,
     flex: 1,
   },
   overlayNavArrow: {
     fontSize: 16,
-    color: '#5b9bd5',
+    color: Colors.SECONDARY,
     marginLeft: 8,
   },
   overlayCloseButton: {
@@ -1259,7 +940,7 @@ const styles = StyleSheet.create({
   },
   overlayCloseText: {
     fontSize: 22,
-    color: '#999',
+    color: Colors.TEXT_LIGHT,
     fontWeight: '300',
   },
 });

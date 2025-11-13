@@ -1,11 +1,10 @@
-/**
- * Quest List Component (No Map - for web/PC testing)
- * Simple list view of quests
- */
 
 import React, { useState, useEffect } from 'react';
 import { View, StyleSheet, Text, TouchableOpacity, ScrollView, ActivityIndicator } from 'react-native';
 import { getAllQuests } from '../api/fastapi';
+import * as Colors from '../constants/colors';
+import { SPACING, RADIUS, FONT_SIZE, FONT_WEIGHT } from '../constants/spacing';
+import { shadows } from '../utils/theme';
 
 const QuestList = ({ onQuestSelected }) => {
   const [quests, setQuests] = useState([]);
@@ -18,11 +17,9 @@ const QuestList = ({ onQuestSelected }) => {
 
   const loadQuests = async () => {
     try {
-      console.log('Loading quests...');
       setLoading(true);
       setError(null);
       const questData = await getAllQuests();
-      console.log('Quests loaded:', questData);
       setQuests(questData || []);
     } catch (error) {
       console.error('Error loading quests:', error);
@@ -35,7 +32,7 @@ const QuestList = ({ onQuestSelected }) => {
   if (loading) {
     return (
       <View style={styles.centerContainer}>
-        <ActivityIndicator size="large" color="#6366f1" />
+        <ActivityIndicator size="large" color={Colors.SECONDARY} />
         <Text style={styles.loadingText}>Loading quests...</Text>
       </View>
     );
@@ -91,112 +88,108 @@ const QuestList = ({ onQuestSelected }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f3f4f6',
+    backgroundColor: Colors.BACKGROUND_LIGHT,
   },
   centerContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    padding: 20,
+    padding: SPACING.xl,
   },
   header: {
-    backgroundColor: '#6366f1',
-    padding: 20,
-    paddingTop: 40,
+    backgroundColor: Colors.SECONDARY,
+    padding: SPACING.xl,
+    paddingTop: SPACING.xxxl + 8,
   },
   headerTitle: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#ffffff',
+    fontSize: FONT_SIZE.title,
+    fontWeight: FONT_WEIGHT.bold,
+    color: Colors.TEXT_WHITE,
     marginBottom: 4,
   },
   headerSubtitle: {
-    fontSize: 14,
-    color: '#e0e7ff',
+    fontSize: FONT_SIZE.md,
+    color: Colors.TEXT_WHITE + 'CC',
   },
   loadingText: {
-    marginTop: 12,
-    fontSize: 16,
-    color: '#6b7280',
+    marginTop: SPACING.md,
+    fontSize: FONT_SIZE.lg,
+    color: Colors.TEXT_MUTED,
   },
   errorText: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#ef4444',
-    marginBottom: 8,
+    fontSize: FONT_SIZE.xl,
+    fontWeight: FONT_WEIGHT.bold,
+    color: Colors.ERROR,
+    marginBottom: SPACING.sm,
   },
   errorDetail: {
-    fontSize: 14,
-    color: '#6b7280',
+    fontSize: FONT_SIZE.md,
+    color: Colors.TEXT_MUTED,
     textAlign: 'center',
-    marginBottom: 16,
+    marginBottom: SPACING.lg,
   },
   retryButton: {
-    backgroundColor: '#6366f1',
-    paddingHorizontal: 24,
-    paddingVertical: 12,
-    borderRadius: 8,
+    backgroundColor: Colors.SECONDARY,
+    paddingHorizontal: SPACING.xl,
+    paddingVertical: SPACING.md,
+    borderRadius: RADIUS.sm,
   },
   retryButtonText: {
-    color: '#ffffff',
-    fontSize: 16,
-    fontWeight: '600',
+    color: Colors.TEXT_WHITE,
+    fontSize: FONT_SIZE.lg,
+    fontWeight: FONT_WEIGHT.semibold,
   },
   questCard: {
-    backgroundColor: '#ffffff',
-    marginHorizontal: 16,
-    marginTop: 16,
-    borderRadius: 12,
-    padding: 16,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+    backgroundColor: Colors.BACKGROUND_WHITE,
+    marginHorizontal: SPACING.lg,
+    marginTop: SPACING.lg,
+    borderRadius: RADIUS.lg,
+    padding: SPACING.lg,
+    ...shadows.medium,
   },
   questHeader: {
     flexDirection: 'row',
-    marginBottom: 12,
+    marginBottom: SPACING.md,
   },
   questEmoji: {
     fontSize: 32,
-    marginRight: 12,
+    marginRight: SPACING.md,
   },
   questInfo: {
     flex: 1,
   },
   questName: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#1f2937',
+    fontSize: FONT_SIZE.xl,
+    fontWeight: FONT_WEIGHT.bold,
+    color: Colors.TEXT_PRIMARY,
     marginBottom: 4,
   },
   questDescription: {
-    fontSize: 14,
-    color: '#6b7280',
+    fontSize: FONT_SIZE.md,
+    color: Colors.TEXT_MUTED,
     lineHeight: 20,
   },
   questFooter: {
     borderTopWidth: 1,
-    borderTopColor: '#e5e7eb',
-    paddingTop: 12,
+    borderTopColor: Colors.BORDER_LIGHT,
+    paddingTop: SPACING.md,
   },
   rewardText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#059669',
-    marginBottom: 8,
+    fontSize: FONT_SIZE.lg,
+    fontWeight: FONT_WEIGHT.semibold,
+    color: Colors.ACCENT,
+    marginBottom: SPACING.sm,
   },
   locationBadge: {
-    backgroundColor: '#f3f4f6',
-    paddingHorizontal: 12,
+    backgroundColor: Colors.GRAY_100,
+    paddingHorizontal: SPACING.md,
     paddingVertical: 6,
-    borderRadius: 6,
+    borderRadius: RADIUS.sm,
     alignSelf: 'flex-start',
   },
   locationText: {
-    fontSize: 12,
-    color: '#6b7280',
+    fontSize: FONT_SIZE.sm,
+    color: Colors.TEXT_MUTED,
   },
 });
 

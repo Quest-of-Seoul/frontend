@@ -1,9 +1,4 @@
-/**
- * Reward Screen
- * Shows available rewards and allows redemption
- */
-
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -22,6 +17,10 @@ import {
   getClaimedRewards,
 } from '../api/fastapi';
 import TabBar from '../components/TabBar';
+import * as Colors from '../constants/colors';
+import { SPACING, RADIUS, FONT_SIZE, FONT_WEIGHT } from '../constants/spacing';
+import { shadows, textStyles } from '../utils/theme';
+import { createNavigationHandlers } from '../utils/navigation-helpers';
 
 const RewardScreen = ({ navigation }) => {
   const [activeTab, setActiveTab] = useState('available'); // 'available' or 'claimed'
@@ -46,15 +45,12 @@ const RewardScreen = ({ navigation }) => {
 
       setUserId(user.id);
 
-      // Load user points
       const pointsData = await getUserPoints(user.id);
       setUserPoints(pointsData.total_points);
 
-      // Load available rewards
       const rewards = await getAvailableRewards();
       setAvailableRewards(rewards);
 
-      // Load claimed rewards
       const claimed = await getClaimedRewards(user.id);
       setClaimedRewards(claimed);
     } catch (error) {
@@ -136,33 +132,18 @@ const RewardScreen = ({ navigation }) => {
     );
   };
 
-  const navigateToHome = () => {
-    navigation.navigate('Home');
-  };
-
-  const navigateToQuests = () => {
-    navigation.navigate('Quest');
-  };
-
-  const navigateToAR = () => {
-    navigation.navigate('AR');
-  };
-
-  const navigateToMy = () => {
-    navigation.navigate('My');
-  };
+  const navHandlers = createNavigationHandlers(navigation);
 
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#6366f1" />
+        <ActivityIndicator size="large" color={Colors.SECONDARY} />
       </View>
     );
   }
 
   return (
     <SafeAreaView style={styles.container}>
-      {/* Header */}
       <View style={styles.header}>
         <Text style={styles.title}>보상 스토어</Text>
         <View style={styles.pointsCard}>
@@ -171,7 +152,6 @@ const RewardScreen = ({ navigation }) => {
         </View>
       </View>
 
-      {/* Tabs */}
       <View style={styles.tabContainer}>
         <TouchableOpacity
           style={[styles.tab, activeTab === 'available' && styles.activeTab]}
@@ -201,7 +181,6 @@ const RewardScreen = ({ navigation }) => {
         </TouchableOpacity>
       </View>
 
-      {/* Rewards List */}
       <ScrollView style={styles.scrollView}>
         {activeTab === 'available' &&
           availableRewards.map((reward) => renderRewardCard(reward, false))}
@@ -218,11 +197,11 @@ const RewardScreen = ({ navigation }) => {
 
       <TabBar
         activeTab="reward"
-        onHomePress={navigateToHome}
-        onQuestPress={navigateToQuests}
-        onARPress={navigateToAR}
+        onHomePress={navHandlers.navigateToHome}
+        onQuestPress={navHandlers.navigateToQuest}
+        onARPress={navHandlers.navigateToAR}
         onRewardPress={() => {}}
-        onMyPress={navigateToMy}
+        onMyPress={navHandlers.navigateToMy}
       />
     </SafeAreaView>
   );
@@ -231,101 +210,98 @@ const RewardScreen = ({ navigation }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f9fafb',
+    backgroundColor: Colors.BACKGROUND_LIGHT,
   },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
+    backgroundColor: Colors.BACKGROUND_LIGHT,
   },
   header: {
-    padding: 20,
-    backgroundColor: '#ffffff',
+    padding: SPACING.xl,
+    backgroundColor: Colors.BACKGROUND_WHITE,
     borderBottomWidth: 1,
-    borderBottomColor: '#e5e7eb',
+    borderBottomColor: Colors.BORDER_LIGHT,
   },
   title: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    color: '#1f2937',
-    marginBottom: 16,
+    ...textStyles.h2,
+    marginBottom: SPACING.lg,
   },
   pointsCard: {
-    backgroundColor: '#f0f9ff',
-    padding: 16,
-    borderRadius: 12,
+    backgroundColor: Colors.SECONDARY + '15',
+    padding: SPACING.lg,
+    borderRadius: RADIUS.lg,
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
+    ...shadows.small,
   },
   pointsLabel: {
-    fontSize: 16,
-    color: '#0369a1',
+    fontSize: FONT_SIZE.lg,
+    color: Colors.SECONDARY,
+    fontWeight: FONT_WEIGHT.medium,
   },
   pointsValue: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#0369a1',
+    fontSize: FONT_SIZE.title,
+    fontWeight: FONT_WEIGHT.bold,
+    color: Colors.SECONDARY,
   },
   tabContainer: {
     flexDirection: 'row',
-    backgroundColor: '#ffffff',
+    backgroundColor: Colors.BACKGROUND_WHITE,
     borderBottomWidth: 1,
-    borderBottomColor: '#e5e7eb',
+    borderBottomColor: Colors.BORDER_LIGHT,
   },
   tab: {
     flex: 1,
-    paddingVertical: 16,
+    paddingVertical: SPACING.lg,
     alignItems: 'center',
     borderBottomWidth: 2,
     borderBottomColor: 'transparent',
   },
   activeTab: {
-    borderBottomColor: '#6366f1',
+    borderBottomColor: Colors.SECONDARY,
   },
   tabText: {
-    fontSize: 16,
-    color: '#6b7280',
+    fontSize: FONT_SIZE.lg,
+    color: Colors.TEXT_MUTED,
+    fontWeight: FONT_WEIGHT.medium,
   },
   activeTabText: {
-    color: '#6366f1',
-    fontWeight: '600',
+    color: Colors.SECONDARY,
+    fontWeight: FONT_WEIGHT.bold,
   },
   scrollView: {
     flex: 1,
-    padding: 16,
+    padding: SPACING.lg,
   },
   rewardCard: {
-    backgroundColor: '#ffffff',
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+    backgroundColor: Colors.BACKGROUND_WHITE,
+    borderRadius: RADIUS.lg,
+    padding: SPACING.lg,
+    marginBottom: SPACING.md,
+    ...shadows.medium,
   },
   rewardHeader: {
     flexDirection: 'row',
-    marginBottom: 12,
+    marginBottom: SPACING.md,
   },
   rewardType: {
     fontSize: 32,
-    marginRight: 12,
+    marginRight: SPACING.md,
   },
   rewardInfo: {
     flex: 1,
   },
   rewardName: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#1f2937',
+    fontSize: FONT_SIZE.xl,
+    fontWeight: FONT_WEIGHT.bold,
+    color: Colors.TEXT_PRIMARY,
     marginBottom: 4,
   },
   rewardDescription: {
-    fontSize: 14,
-    color: '#6b7280',
+    ...textStyles.body,
     lineHeight: 20,
   },
   rewardFooter: {
@@ -334,43 +310,42 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   rewardCost: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#059669',
+    fontSize: FONT_SIZE.xl,
+    fontWeight: FONT_WEIGHT.bold,
+    color: Colors.ACCENT,
   },
   claimButton: {
-    backgroundColor: '#6366f1',
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-    borderRadius: 8,
+    backgroundColor: Colors.SECONDARY,
+    paddingHorizontal: SPACING.xl,
+    paddingVertical: SPACING.sm,
+    borderRadius: RADIUS.md,
   },
   claimButtonDisabled: {
-    backgroundColor: '#d1d5db',
+    backgroundColor: Colors.GRAY_300,
   },
   claimButtonText: {
-    color: '#ffffff',
-    fontSize: 14,
-    fontWeight: '600',
+    color: Colors.TEXT_WHITE,
+    fontSize: FONT_SIZE.md,
+    fontWeight: FONT_WEIGHT.semibold,
   },
   claimedBadge: {
-    backgroundColor: '#d1fae5',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 8,
+    backgroundColor: Colors.SUCCESS_BG,
+    paddingHorizontal: SPACING.lg,
+    paddingVertical: SPACING.sm,
+    borderRadius: RADIUS.md,
   },
   claimedText: {
-    color: '#059669',
-    fontSize: 14,
-    fontWeight: '600',
+    color: Colors.SUCCESS,
+    fontSize: FONT_SIZE.md,
+    fontWeight: FONT_WEIGHT.semibold,
   },
   emptyContainer: {
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 60,
+    paddingVertical: SPACING.xxxl * 2,
   },
   emptyText: {
-    fontSize: 16,
-    color: '#6b7280',
+    ...textStyles.body,
   },
 });
 
