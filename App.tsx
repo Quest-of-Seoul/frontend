@@ -46,30 +46,30 @@ function App() {
     }
   };
 
-  if (isLoading) {
-    return <SplashScreen />;
-  }
-
   return (
     <SafeAreaProvider>
       <StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} />
-      <NavigationContainer>
-        <Stack.Navigator
-          initialRouteName={isAuthenticated ? 'Home' : 'Login'}
-          screenOptions={{
-            headerShown: false,
-            animation: 'slide_from_right',
-          }}
-        >
-          <Stack.Screen name="Login" component={LoginScreen} />
-          <Stack.Screen name="Home" component={HomeScreen} />
-          <Stack.Screen name="Quest" component={QuestScreen} />
-          <Stack.Screen name="AR" component={ARScreen} />
-          <Stack.Screen name="ARChat" component={ARChatScreen} />
-          <Stack.Screen name="Quiz" component={QuizScreen} />
-          <Stack.Screen name="Reward" component={RewardScreen} />
-        </Stack.Navigator>
-      </NavigationContainer>
+      {isLoading ? (
+        <SplashScreen />
+      ) : (
+        <NavigationContainer>
+          <Stack.Navigator
+            initialRouteName={isAuthenticated ? 'Home' : 'Login'}
+            screenOptions={{
+              headerShown: false,
+              animation: 'slide_from_right',
+            }}
+          >
+            <Stack.Screen name="Login" component={LoginScreen} />
+            <Stack.Screen name="Home" component={HomeScreen} />
+            <Stack.Screen name="Quest" component={QuestScreen} />
+            <Stack.Screen name="AR" component={ARScreen} />
+            <Stack.Screen name="ARChat" component={ARChatScreen} />
+            <Stack.Screen name="Quiz" component={QuizScreen} />
+            <Stack.Screen name="Reward" component={RewardScreen} />
+          </Stack.Navigator>
+        </NavigationContainer>
+      )}
     </SafeAreaProvider>
   );
 }

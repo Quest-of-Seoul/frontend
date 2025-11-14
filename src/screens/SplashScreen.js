@@ -3,15 +3,15 @@ import {
   View,
   Text,
   StyleSheet,
-  SafeAreaView,
   Image,
   Animated,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import LinearGradient from 'react-native-linear-gradient';
 import * as Colors from '../constants/colors';
 import { FONT_SIZE, FONT_WEIGHT } from '../constants/spacing';
 
-const SplashScreen = ({ navigation }) => {
+const SplashScreen = () => {
   const fadeAnim = new Animated.Value(0);
   const scaleAnim = new Animated.Value(0.8);
 
@@ -30,13 +30,6 @@ const SplashScreen = ({ navigation }) => {
         useNativeDriver: true,
       }),
     ]).start();
-
-    // Navigate to Login after 2.5 seconds
-    const timer = setTimeout(() => {
-      navigation.replace('Login');
-    }, 2500);
-
-    return () => clearTimeout(timer);
   }, []);
 
   return (
@@ -46,7 +39,7 @@ const SplashScreen = ({ navigation }) => {
       start={{ x: 0.5, y: 0 }}
       end={{ x: 0.5, y: 1 }}
     >
-      <SafeAreaView style={styles.safeArea}>
+      <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
         <Animated.View
           style={[
             styles.content,
