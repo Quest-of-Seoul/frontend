@@ -68,13 +68,16 @@ export const signOut = async () => {
 
 export const getSession = async () => {
   try {
-    if (!supabase) {
+    if (!supabase || !supabase.auth) {
       return null;
     }
 
     const { data, error } = await supabase.auth.getSession();
-    if (error) throw error;
-    return data.session;
+    if (error) {
+      console.error('세션 가져오기 오류:', error);
+      throw error;
+    }
+    return data?.session || null;
   } catch (error) {
     console.error('Error getting session:', error);
     return null;

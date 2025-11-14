@@ -36,6 +36,7 @@ function App() {
       setIsAuthenticated(!!session);
     } catch (error) {
       console.error('Auth check error:', error);
+      // 오류가 발생해도 로그인 화면으로 이동
       setIsAuthenticated(false);
     } finally {
       // 스플래시 스크린을 2초간 보여주기
